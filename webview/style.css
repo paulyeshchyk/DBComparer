@@ -1,0 +1,177 @@
+/* Общие стили для всего webview */
+body {
+    font-family: var(--vscode-font-family);
+    padding: 20px;
+    color: var(--vscode-foreground);
+    background: var(--vscode-editor-background);
+}
+
+h1, h2, h3 {
+    color: var(--vscode-foreground);
+}
+
+.connection {
+    width: 100%;
+    font-family: monospace;
+    border: 1px solid var(--vscode-input-border);
+}
+
+button {
+    padding: 12px 24px;
+    font-size: 15px;
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+}
+button:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.section {
+    margin: 20px 0;
+    padding: 16px;
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px;
+}
+
+/* Таблица сравнения */
+.compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+}
+.compare-table th,
+.compare-table td {
+    padding: 6px 12px;
+    border: 1px solid var(--vscode-panel-border);
+    text-align: left;
+    vertical-align: top;
+}
+.compare-table th {
+    background: var(--vscode-list-hoverBackground);
+    font-weight: bold;
+}
+
+/* Уровни вложенности */
+.level-0 td {
+    font-weight: bold;
+    background: var(--vscode-list-inactiveSelectionBackground);
+}
+.level-1 td {
+    padding-left: 30px;
+    background: transparent;
+}
+
+/* Подсветка различий – прозрачные оттенки, чтобы не перекрывать текст */
+.only-source td:first-child {
+    background: rgba(88, 124, 12, 0.15); /* зелёный для источника */
+}
+.only-target td:last-child {
+    background: rgba(173, 7, 7, 0.15); /* красный для приёмника */
+}
+.diff td {
+    background: rgba(191, 136, 3, 0.15); /* жёлтый для различий */
+}
+.diff-case td {
+    background: rgba(191, 136, 3, 0.25); /* жёлтый с большей прозрачностью */
+}
+
+.loading {
+    color: var(--vscode-foreground);
+    font-style: italic;
+}
+.error {
+    color: var(--vscode-errorForeground);
+    padding: 12px;
+    background: var(--vscode-inputValidation-errorBackground);
+}
+
+.indent {
+    padding-left: 30px !important;
+}
+
+/* Вкладки */
+.tabs {
+  margin-bottom: 10px;
+}
+.tab-headers {
+  display: flex;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  margin-bottom: 10px;
+}
+.tab-header {
+  padding: 8px 16px;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  color: var(--vscode-foreground);
+  font-size: 14px;
+  font-weight: normal;
+  border-bottom: 2px solid transparent;
+  transition: border-color 0.2s;
+}
+.tab-header:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+.tab-header.active {
+  border-bottom-color: var(--vscode-focusBorder);
+  font-weight: bold;
+}
+.tab-content {
+  display: none;
+}
+.tab-content.active {
+  display: block;
+}
+
+/* Таблица маппинга */
+#mappingContainer {
+  margin: 10px 0;
+}
+#mappingTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+#mappingTable th,
+#mappingTable td {
+  padding: 4px 8px;
+  border: 1px solid var(--vscode-panel-border);
+  text-align: left;
+}
+#mappingTable th {
+  background: var(--vscode-list-hoverBackground);
+}
+#mappingTable input[type="text"] {
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border);
+  padding: 2px 4px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.removeMappingRow {
+  background: transparent;
+  border: none;
+  color: var(--vscode-errorForeground);
+  cursor: pointer;
+  font-size: 16px;
+}
+#addMappingRow {
+  margin-top: 6px;
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: 1px solid var(--vscode-button-secondaryBorder);
+  padding: 4px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+#addMappingRow:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.tab-contents.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}

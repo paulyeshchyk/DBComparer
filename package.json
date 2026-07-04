@@ -1,0 +1,87 @@
+{
+  "name": "dbcompare",
+  "displayName": "DBCompare",
+  "description": "Сравнение схем баз данных (MSSQL + PostgreSQL) с нормализацией типов",
+  "version": "0.0.1",
+  "publisher": "paulyestchick",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Education"
+  ],
+  "activationEvents": [
+  ],
+  "files": [
+  "out/**/*",
+  "webview/**/*"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "db-compare.start",
+        "title": "DB Compare: Запустить сравнение",
+        "category": "DB Compare"
+      }
+    ],
+    "configuration": {
+      "title": "DB Compare",
+      "properties": {
+        "db-compare.normalizeTypes": {
+          "type": "boolean",
+          "default": true,
+          "description": "Нормализовать типы данных (word, dword, string(MAX) и т.д.)"
+        },
+        "db-compare.normalizeSchema": {
+          "type": "object",
+          "default": {
+            "dbo": "DBO",
+            "public": "PUBLIC",
+            "ora_dbo": "DBO"
+          },
+          "description": "Маппинг схем (например dbo -> DBO)"
+        },
+        "db-compare.lastSource":{
+          "type": "string",
+          "default": "Server=gulfdev;Database=gs10_tun;User Id=sa;Password=12345;TrustServerCertificate=True;Encrypt=True;",
+          "description": "last source"
+        },
+        "db-compare.lastTarget":{
+          "type": "string",
+          "default": "postgresql://postgres:12345@gulfdev:5432/sample",
+          "description": "last source"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "pretest": "npm run compile && npm run lint",
+    "test": "vscode-test"
+  },
+  "dependencies": {
+    "mssql": "^11.0.1",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/mssql": "^12.3.0",
+    "@types/node": "20.x",
+    "@types/pg": "^8.11.10",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.0.0",
+    "@vscode/vsce": "^3.0.0",
+    "eslint": "^10.6.0",
+    "typescript": "^5.5.0"
+  },
+  "overrides": {
+    "diff": "^8.0.4",
+    "serialize-javascript": "^7.0.6"
+  }
+}
