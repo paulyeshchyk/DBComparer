@@ -6,7 +6,9 @@ export function initMappingTable() {
   const entries = Object.entries(mapping);
   if (entries.length === 0) addMappingRow("", "");
   else entries.forEach(([source, target]) => addMappingRow(source, target));
-}export function getMappingFromTable() {
+}
+
+export function getMappingFromTable() {
   const rows = document.querySelectorAll("#mappingBody tr");
   const mapping = {};
   rows.forEach((row) => {
@@ -20,10 +22,12 @@ export function initMappingTable() {
   });
   return mapping;
 }
+
 export function saveMappingToStorage() {
   const mapping = getMappingFromTable();
   localStorage.setItem("dbCompareMapping", JSON.stringify(mapping));
 }
+
 export function loadMappingFromStorage() {
   const data = localStorage.getItem("dbCompareMapping");
   if (data) {

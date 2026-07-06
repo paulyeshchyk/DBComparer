@@ -163,7 +163,6 @@ export class ComparePanel {
         let sourceRaw: DatabaseMetadata | null = null;
         let targetRaw: DatabaseMetadata | null = null;
 
-        // Если запрошен кэш – пытаемся загрузить сырые данные
         if (useCache) {
             const cached = this.cacheManager.loadCache(hash);
             if (cached?.source && cached?.target) {
@@ -172,7 +171,6 @@ export class ComparePanel {
             }
         }
 
-        // Если сырых данных нет – извлекаем из БД и сохраняем в кэш
         if (!sourceRaw || !targetRaw) {
             try {
                 this.sendLoading(MESSAGES.CONNECTING_SOURCE);
@@ -198,7 +196,6 @@ export class ComparePanel {
             }
         }
 
-        // Теперь у нас есть сырые данные – применяем нормализацию и вычисляем diff
         try {
             const sourceMeta = MetadataAdapter.adapt(sourceRaw, config);
             const targetMeta = MetadataAdapter.adapt(targetRaw, config);
@@ -258,7 +255,6 @@ export class Comparator implements IComparator {
 
 export class MetadataAdapter {
     public static adapt(sourceRaw: DatabaseMetadata, config: IConnectionConfig) {
-        // Применяем нормализацию к сырым данным
         const sourceMeta = JSON.parse(JSON.stringify(sourceRaw));
 
         if (config.options.normalizeTypes) {
@@ -267,8 +263,13 @@ export class MetadataAdapter {
         if (config.options.normalizeSchemaEnabled) {
             MetadataBuilder.normalizeSchema(config, sourceMeta);
         }
-        MetadataBuilder.resort(sourceMeta);
-        return sourceMeta;
+        // Применяем фильтры (используя уже нормализованные схемы)
+        const include = config.options.includeFilters ?? ["*"];
+        const exclude = config.options.excludeFilters ?? [];
+        const filtered = MetadataBuilder.applyFilters(sourceMeta, include, exclude);
+        // Сортируем после фильтрации
+        MetadataBuilder.resort(filtered);
+        return filtered;
     }
 }
 interface ProgressFormatResult {
@@ -426,6 +427,8 @@ export class ConfigBuilder {
                 normalizeSchema: normalizeSchema && Object.keys(normalizeSchema).length > 0 ? normalizeSchema : undefined,
                 ignoreCase,
                 hideIdentical,
+                includeFilters: rawConfig.includeFilters || ["*"], // <--
+                excludeFilters: rawConfig.excludeFilters || [], // <--
             },
         };
     }

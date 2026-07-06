@@ -15,47 +15,50 @@ export function loadCacheList() {
     window.addEventListener("message", handler);
     vscode.postMessage({ command: "getCacheList" });
   });
-}export function renderCacheList(list) {
-  const container = document.getElementById("cacheList");
+}
+
+export function renderCacheList(list) {
+  const container = document.getElementById('cacheList');
   if (!list || list.length === 0) {
     container.innerHTML = '<div class="section"><p>Нет сохранённых кэшей.</p></div>';
     return;
   }
 
   let html = '<div class="section"><h2>Сохранённые кэши</h2>';
-  html += '<table class="compare-table"><thead><tr><th>#</th><th>Источник</th><th>Приёмник</th><th>Действия</th></tr></thead><tbody>';
+  html += '<table class="cache-table"><thead><tr><th>#</th><th>Источник</th><th>Приёмник</th><th>Действия</th></tr></thead><tbody>';
 
   list.forEach((item, index) => {
     const num = index + 1;
     html += `<tr>
             <td>${num}</td>
-            <td>${item.sourceName || "—"}</td>
-            <td>${item.targetName || "—"}</td>
+            <td>${item.sourceName || '—'}</td>
+            <td>${item.targetName || '—'}</td>
             <td>
-                <button class="delete-cache" data-hash="${item.hash}">🗑️ Удалить</button>
-                <button class="export-cache" data-hash="${item.hash}">💾 Экспортировать</button>
+                <button class="delete-cache" data-hash="${item.hash}">🗑️</button>
+                <button class="export-cache" data-hash="${item.hash}">💾</button>
             </td>
         </tr>`;
   });
 
-  html += "</tbody></table></div>";
+  html += '</tbody></table></div>';
   container.innerHTML = html;
 
   // Обработчики для кнопок
-  container.querySelectorAll(".delete-cache").forEach((btn) => {
-    btn.addEventListener("click", function () {
+  container.querySelectorAll('.delete-cache').forEach(btn => {
+    btn.addEventListener('click', function () {
       const hash = this.dataset.hash;
-      vscode.postMessage({ command: "deleteCache", hash: hash });
+      vscode.postMessage({ command: 'deleteCache', hash: hash });
     });
   });
 
-  container.querySelectorAll(".export-cache").forEach((btn) => {
-    btn.addEventListener("click", function () {
+  container.querySelectorAll('.export-cache').forEach(btn => {
+    btn.addEventListener('click', function () {
       const hash = this.dataset.hash;
-      vscode.postMessage({ command: "exportCache", hash: hash });
+      vscode.postMessage({ command: 'exportCache', hash: hash });
     });
   });
 }
+
 export async function refreshCacheList() {
   const list = await loadCacheList();
   renderCacheList(list);

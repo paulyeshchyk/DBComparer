@@ -1,9 +1,13 @@
-import { getMappingFromTable } from "./mapping";
+// webview/src/config.js
+import { getFilters } from './filters';
+import { getMappingFromTable } from './mapping';
 
-// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 export function getDisplayName(schema, name, showSchema) {
   return showSchema ? `${schema}.${name}` : name;
-}export function getCurrentConfig() {
+}
+
+export function getCurrentConfig() {
+  const filters = getFilters();
   return {
     source: document.getElementById("source").value.trim(),
     target: document.getElementById("target").value.trim(),
@@ -13,6 +17,7 @@ export function getDisplayName(schema, name, showSchema) {
     hideIdentical: document.getElementById("hideIdentical").checked,
     viewMode: document.querySelector('input[name="viewMode"]:checked')?.value || "detailed",
     normalizeSchema: getMappingFromTable(),
+    includeFilters: filters.include,
+    excludeFilters: filters.exclude
   };
 }
-

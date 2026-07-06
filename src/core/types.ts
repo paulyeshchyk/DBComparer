@@ -17,18 +17,18 @@ export interface IParameterInfo {
 }
 
 export interface IColumnInfo {
-  name: string;
-  dataType: string;
-  isNullable: boolean;
-  isPrimaryKey: boolean;
+    name: string;
+    dataType: string;
+    isNullable: boolean;
+    isPrimaryKey: boolean;
 }
 
 export interface IIndexInfo {
-  name: string;
-  columns: string[];
-  isUnique: boolean;
-  isClustered: boolean;
-  indexType?: string;
+    name: string;
+    columns: string[];
+    isUnique: boolean;
+    isClustered: boolean;
+    indexType?: string;
 }
 
 export interface IParameterDiff {
@@ -45,62 +45,63 @@ export interface IProcedureInfo {
 }
 
 export interface ITableInfo {
-  schema: string;
-  name: string;
-  columns: IColumnInfo[];
-  indexes: IIndexInfo[];
+    schema: string;
+    name: string;
+    columns: IColumnInfo[];
+    indexes: IIndexInfo[];
 }
 
 export interface DatabaseMetadata {
-  connectionString: string;
-  tables: ITableInfo[];
-  procedures: IProcedureInfo[];
+    connectionString: string;
+    tables: ITableInfo[];
+    procedures: IProcedureInfo[];
 }
 
 export enum DatabaseType {
-  Unknown,
-  MsSql,
-  PostgreSql
+    Unknown,
+    MsSql,
+    PostgreSql,
 }
 
 export interface IConnectionConfig {
-  source: { connectionString: string; name?: string };
-  target: { connectionString: string; name?: string };
-  options: {
-    normalizeTypes: boolean;
-    normalizeSchemaEnabled?: boolean;
-    hideIdentical?: boolean;
-    normalizeSchema?: Record<string, string>;
-    ignoreCase?: boolean;
-  };
+    source: { connectionString: string; name?: string };
+    target: { connectionString: string; name?: string };
+    options: {
+        normalizeTypes: boolean;
+        normalizeSchemaEnabled?: boolean;
+        hideIdentical?: boolean;
+        normalizeSchema?: Record<string, string>;
+        ignoreCase?: boolean;
+        includeFilters?: string[];
+        excludeFilters?: string[];
+    };
 }
-
 // Diff-структуры
 export interface IColumnDiff {
-  onlyInSource: string[];
-  onlyInTarget: string[];
-  diff: { name: string; sourceType: string; targetType: string }[];
-  caseDiff: { name: string; sourceName: string; targetName: string }[];
+    onlyInSource: string[];
+    onlyInTarget: string[];
+    diff: { name: string; sourceType: string; targetType: string }[];
+    caseDiff: { name: string; sourceName: string; targetName: string }[];
 }
 
 export interface IIndexDiff {
-  onlyInSource: string[];
-  onlyInTarget: string[];
-  diff: { name: string; sourceDesc: string; targetDesc: string }[];
-  caseDiff: { name: string; sourceName: string; targetName: string }[];
+    onlyInSource: string[];
+    onlyInTarget: string[];
+    diff: { name: string; sourceDesc: string; targetDesc: string }[];
+    caseDiff: { name: string; sourceName: string; targetName: string }[];
 }
 
 export interface ITableDiff {
-  schema: string;
-  name: string;
-  columns: IColumnDiff;
-  indexes: IIndexDiff;
+    schema: string;
+    name: string;
+    columns: IColumnDiff;
+    indexes: IIndexDiff;
 }
 
 export interface IProcedureDiff {
     schema: string;
     name: string;
-    parameters: IParameterDiff; 
+    parameters: IParameterDiff;
 }
 
 export interface IMetadataDiff {
@@ -110,24 +111,24 @@ export interface IMetadataDiff {
 
 // Опции сравнения
 export class CompareOptions {
-  constructor(
-    public ignoreCase: boolean,
-    public hideIdentical: boolean
-  ) {}
+    constructor(
+        public ignoreCase: boolean,
+        public hideIdentical: boolean,
+    ) {}
 }
 
 // Интерфейсы для менеджеров
 export interface ICacheManager {
-  getCacheDir(): string;
-  getCachePath(hash: string): string;
-  exportCache(targetDir: string, hash: string): string | null;
-  computeHash(sourceConn: string, targetConn: string): string;
-  saveCache(hash: string, data: any): void;
-  loadCache(hash: string): any | null;
-  deleteCacheFile(hash: string): void;
-  getCacheList(): any[];
+    getCacheDir(): string;
+    getCachePath(hash: string): string;
+    exportCache(targetDir: string, hash: string): string | null;
+    computeHash(sourceConn: string, targetConn: string): string;
+    saveCache(hash: string, data: any): void;
+    loadCache(hash: string): any | null;
+    deleteCacheFile(hash: string): void;
+    getCacheList(): any[];
 }
 
 export interface IComparator {
-  compareMetadata(source: DatabaseMetadata, target: DatabaseMetadata, options: CompareOptions): IMetadataDiff;
+    compareMetadata(source: DatabaseMetadata, target: DatabaseMetadata, options: CompareOptions): IMetadataDiff;
 }
