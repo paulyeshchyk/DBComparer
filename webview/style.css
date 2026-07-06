@@ -153,28 +153,35 @@ button:disabled {
 .compare-table {
     width: 100%;
     border-collapse: collapse;
-    margin: 12px 0;
+    margin: 16px 0;
     table-layout: fixed;
+    font-size: 13px; /* Стандартный размер шрифта для кода */
 }
 
 .compare-table th,
 .compare-table td {
-    padding: 6px 12px;
-    border: 1px solid var(--vscode-panel-border);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--vscode-panel-border);
     text-align: left;
-    vertical-align: top;
+    vertical-align: middle;
+    transition: background-color 0.15s ease; /* Плавность при наведении */
 }
 
 .compare-table th {
-    background: var(--vscode-list-inactiveSelectionBackground) !important;
-    color: var(--vscode-list-inactiveSelectionForeground) !important;
-    font-weight: bold;
+    background: var(--vscode-editor-background);
+    color: var(--vscode-descriptionForeground); /* Приглушенный серый */
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid var(--vscode-panel-border);
 }
 
 .compare-table th:first-child,
 .compare-table td:first-child {
     width: 50%;
 }
+
 .compare-table th:last-child,
 .compare-table td:last-child {
     width: 50%;
@@ -182,10 +189,16 @@ button:disabled {
 
 /* Строки с именами таблиц/процедур (заголовки сущностей) */
 tr.metadata-header td {
-    background: var(--vscode-list-hoverBackground) !important;
-    color: var(--vscode-list-hoverForeground) !important;
-    border-top: 2px solid var(--vscode-widget-border);
-    font-weight: bold;
+    background: var(--vscode-sideBar-background) !important;
+    color: var(--vscode-foreground) !important;
+    font-weight: 600;
+    border-top: 1.5px solid var(--vscode-widget-border);
+    border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+tr.metadata-header td[colspan="2"] {
+    background: var(--vscode-editor-background) !important;
+    border-left: 3px solid var(--vscode-focusBorder);
 }
 
 .indent {
@@ -194,16 +207,33 @@ tr.metadata-header td {
 
 /* Цвета различий */
 .only-source td:first-child {
-    background: rgba(88, 124, 12, 0.15);
+    background: var(--vscode-diffEditor-insertedTextBackground, rgba(155, 185, 85, 0.1));
+    border-left: 3px solid var(--vscode-gitDecoration-addedResourceForeground, #2ea44f);
 }
+
 .only-target td:last-child {
-    background: rgba(173, 7, 7, 0.15);
+    background: var(--vscode-diffEditor-removedTextBackground, rgba(255, 0, 0, 0.05));
+    border-left: 3px solid var(--vscode-gitDecoration-deletedResourceForeground, #cb2431);
 }
-.diff td {
-    background: rgba(191, 136, 3, 0.15);
-}
+
+/* Оранжевый/Желтый (Модифицировано / Изменения в регистре) */
+.diff td,
 .diff-case td {
-    background: rgba(191, 136, 3, 0.25);
+    background: var(--vscode-editor-inactiveSelectionBackground, rgba(128, 128, 128, 0.08)) !important;
+}
+
+.diff td:first-child,
+.diff-case td:first-child {
+    border-left: 3px solid var(--vscode-editorWarning-foreground, rgba(230, 160, 0, 0.4));
+}
+
+.diff-case td strong {
+    color: var(--vscode-editorWarning-foreground, #e2931d);
+    font-weight: 600;
+}
+
+.compare-table tr:hover:not(.metadata-header) td {
+    background-image: linear-gradient(color-mix(in srgb, var(--vscode-editor-background) 34%, transparent), color-mix(in srgb, var(--vscode-editor-background) 34%, transparent)) !important;
 }
 
 /* =============================================

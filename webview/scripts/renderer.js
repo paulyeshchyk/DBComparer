@@ -1,6 +1,5 @@
 import { getDisplayName } from "./config";
-import { setSettingsEnabled } from "./ui";
-import { switchTab } from "./ui";
+import { setSettingsEnabled, switchTab } from "./ui";
 
 export function renderCommonTable(table, showSchema, hideIdentical, ignoreCase) {
   const displayName = getDisplayName(table.schema, table.name, showSchema);
@@ -13,10 +12,10 @@ export function renderCommonTable(table, showSchema, hideIdentical, ignoreCase) 
     return "";
   }
 
-  let html = `<tr class="metadata-header"><td colspan="2"><strong>${displayName}</strong></td></tr>`;
-    html += renderColumnsDetails(cols, hideIdentical);
-    html += renderIndexDetails(idx, hideIdentical);
-    return html;
+  let html = `<tr class="metadata-header"><td colspan="2">${displayName}</td></tr>`;
+  html += renderColumnsDetails(cols, hideIdentical);
+  html += renderIndexDetails(idx, hideIdentical);
+  return html;
 }
 
 export function hasDifferences(table, ignoreCase) {
@@ -77,22 +76,22 @@ export function renderIndexDetails(idx, hideIdentical) {
   if (hasDiff || !hideIdentical) {
     if (idx.onlyInSource && idx.onlyInSource.length > 0) {
       idx.onlyInSource.forEach((idxName) => {
-        html += `<tr class="only-source"><td class="indent">[Индекс] ${idxName}</td><td></td></tr>`;
+        html += `<tr class="only-source"><td class="indent">${window.i18n.t('render.diff.index')} ${idxName}</td><td></td></tr>`;
       });
     }
     if (idx.onlyInTarget && idx.onlyInTarget.length > 0) {
       idx.onlyInTarget.forEach((idxName) => {
-        html += `<tr class="only-target"><td></td><td class="indent">[Индекс] ${idxName}</td></tr>`;
+        html += `<tr class="only-target"><td></td><td class="indent">${window.i18n.t('render.diff.index')} ${idxName}</td></tr>`;
       });
     }
     if (idx.diff && idx.diff.length > 0) {
       idx.diff.forEach((item) => {
-        html += `<tr class="diff"><td class="indent">[Индекс] ${item.name}: ${item.sourceDesc}</td><td class="indent">[Индекс] ${item.name}: ${item.targetDesc}</td></tr>`;
+        html += `<tr class="diff"><td class="indent">${window.i18n.t('render.diff.index')} ${item.name}: ${item.sourceDesc}</td><td class="indent">${window.i18n.t('render.diff.index')} ${item.name}: ${item.targetDesc}</td></tr>`;
       });
     }
     if (idx.caseDiff && idx.caseDiff.length > 0) {
       idx.caseDiff.forEach((item) => {
-        html += `<tr class="diff-case"><td class="indent">[Индекс] ${item.sourceName}</td><td class="indent">[Индекс] ${item.targetName}</td></tr>`;
+        html += `<tr class="diff-case"><td class="indent">${window.i18n.t('render.diff.index')} ${item.sourceName}</td><td class="indent">${window.i18n.t('render.diff.index')} ${item.targetName}</td></tr>`;
       });
     }
     if (!hasDiff && !hideIdentical) {
@@ -103,21 +102,21 @@ export function renderIndexDetails(idx, hideIdentical) {
 }
 
 export function renderOnlyInSourceTable(table, showSchema) {
-    const displayName = getDisplayName(table.schema, table.name, showSchema);
-    return `<tr class="metadata-header"><td>${displayName}</td><td></td></tr>`;
+  const displayName = getDisplayName(table.schema, table.name, showSchema);
+  return `<tr class="metadata-header"><td>${displayName}</td><td></td></tr>`;
 }
 
 export function renderOnlyInTargetTable(table, showSchema) {
-    const displayName = getDisplayName(table.schema, table.name, showSchema);
-    return `<tr class="metadata-header"><td></td><td>${displayName}</td></tr>`;
+  const displayName = getDisplayName(table.schema, table.name, showSchema);
+  return `<tr class="metadata-header"><td></td><td>${displayName}</td></tr>`;
 }
 
 export function renderTablesDetailed(diffTables, showSchema, hideIdentical, ignoreCase) {
   const hasTables = diffTables.onlyInSource?.length > 0 || diffTables.onlyInTarget?.length > 0 || diffTables.common?.length > 0 || diffTables.caseDifferences?.length > 0;
   if (!hasTables) return "";
 
-  let html = '<div class="section"><h2>Таблицы</h2>';
-  html += '<table class="compare-table"><thead><tr><th>Источник</th><th>Приёмник</th></tr></thead><tbody>';
+  let html = `<div class="section"><h2>${window.i18n.t('render.result.section.tables')}</h2>`;
+  html += `<table class="compare-table"><thead><tr><th>${window.i18n.t('setup.label.source')}</th><th>${window.i18n.t('setup.label.target')}</th></tr></thead><tbody>`;
 
   if (diffTables.onlyInSource) {
     diffTables.onlyInSource.forEach((t) => {
@@ -135,7 +134,7 @@ export function renderTablesDetailed(diffTables, showSchema, hideIdentical, igno
     });
   }
   if (diffTables.caseDifferences && diffTables.caseDifferences.length > 0 && !ignoreCase) {
-    html += `<tr class="diff-case"><td colspan="2"><strong>Различия в регистре имён таблиц</strong></td></tr>`;
+    html += `<tr class="diff-case"><td colspan="2">${window.i18n.t('render.diff.capitalization')}</td></tr>`;
     diffTables.caseDifferences.forEach((item) => {
       html += `<tr class="diff-case"><td class="indent">${item.sourceName}</td><td class="indent">${item.targetName}</td></tr>`;
     });
@@ -167,8 +166,8 @@ export function renderTablesGrouped(diffTables, showSchema, hideIdentical, ignor
     return "";
   }
 
-  let html = '<div class="section"><h2>Таблицы</h2>';
-  html += '<table class="compare-table"><thead><tr><th>Источник</th><th>Приёмник</th></tr></thead><tbody>';
+  let html = `<div class="section"><h2>${window.i18n.t('render.result.section.tables')}</h2>`;
+  html += `<table class="compare-table"><thead><tr><th>${window.i18n.t('setup.label.source')}</th><th>${window.i18n.t('setup.label.target')}</th></tr></thead><tbody>`;
 
   filteredTables.forEach((item) => {
     const displayName = getDisplayName(item.schema, item.name, showSchema);
@@ -182,7 +181,7 @@ export function renderTablesGrouped(diffTables, showSchema, hideIdentical, ignor
   });
 
   if (diffTables.caseDifferences && diffTables.caseDifferences.length > 0 && !ignoreCase) {
-    html += `<tr class="diff-case"><td colspan="2"><strong>Различия в регистре имён таблиц</strong></td></tr>`;
+    html += `<tr class="diff-case"><td colspan="2">${window.i18n.t('render.diff.capitalization')}</td></tr>`;
     diffTables.caseDifferences.forEach((item) => {
       html += `<tr class="diff-case"><td class="indent">${item.sourceName}</td><td class="indent">${item.targetName}</td></tr>`;
     });
@@ -194,8 +193,8 @@ export function renderProcedures(diffProcs, showSchema, hideIdentical, ignoreCas
   const hasProcs = diffProcs.onlyInSource?.length > 0 || diffProcs.onlyInTarget?.length > 0 || diffProcs.common?.length > 0 || diffProcs.caseDifferences?.length > 0;
   if (!hasProcs) return "";
 
-  let html = '<div class="section"><h2>Процедуры</h2>';
-  html += '<table class="compare-table"><thead><tr><th>Источник</th><th>Приёмник</th></tr></thead><tbody>';
+  let html = `<div class="section"><h2>${window.i18n.t('render.result.section.sp')}</h2>`;
+  html += `<table class="compare-table"><thead><tr><th>${window.i18n.t('setup.label.source')}</th><th>${window.i18n.t('setup.label.target')}</th></tr></thead><tbody>`;
 
   if (diffProcs.onlyInSource) {
     diffProcs.onlyInSource.forEach((p) => {
@@ -214,34 +213,34 @@ export function renderProcedures(diffProcs, showSchema, hideIdentical, ignoreCas
       const displayName = getDisplayName(p.schema, p.name, showSchema);
       html += `<tr class="metadata-header"><td colspan="2">${displayName}</td></tr>`;
 
-      // ---- ВЫВОД ПАРАМЕТРОВ (восстановлено) ----
+      // ---- ВЫВОД ПАРАМЕТРОВ ----
       if (p.parameters) {
         const paramDetails = p.parameters;
         if (paramDetails.onlyInSource.length > 0) {
           paramDetails.onlyInSource.forEach(paramName => {
-            html += `<tr class="only-source"><td class="indent">[Параметр] ${paramName}</td><td></td></tr>`;
+            html += `<tr class="only-source"><td class="indent">${window.i18n.t('render.diff.argument')} ${paramName}</td><td></td></tr>`;
           });
         }
         if (paramDetails.onlyInTarget.length > 0) {
           paramDetails.onlyInTarget.forEach(paramName => {
-            html += `<tr class="only-target"><td></td><td class="indent">[Параметр] ${paramName}</td></tr>`;
+            html += `<tr class="only-target"><td></td><td class="indent">${window.i18n.t('render.diff.argument')} ${paramName}</td></tr>`;
           });
         }
         if (paramDetails.diff.length > 0) {
           paramDetails.diff.forEach(item => {
-            html += `<tr class="diff"><td class="indent">[Параметр] ${item.name}: ${item.sourceType}</td><td class="indent">[Параметр] ${item.name}: ${item.targetType}</td></tr>`;
+            html += `<tr class="diff"><td class="indent">${window.i18n.t('render.diff.argument')} ${item.name}: ${item.sourceType}</td><td class="indent">${window.i18n.t('render.diff.argument')} ${item.name}: ${item.targetType}</td></tr>`;
           });
         }
         if (paramDetails.caseDiff.length > 0 && !ignoreCase) {
           paramDetails.caseDiff.forEach(item => {
-            html += `<tr class="diff-case"><td class="indent">[Параметр] ${item.sourceName}</td><td class="indent">[Параметр] ${item.targetName}</td></tr>`;
+            html += `<tr class="diff-case"><td class="indent">${window.i18n.t('render.diff.argument')} ${item.sourceName}</td><td class="indent">${window.i18n.t('render.diff.argument')} ${item.targetName}</td></tr>`;
           });
         }
       }
     });
   }
   if (diffProcs.caseDifferences && diffProcs.caseDifferences.length > 0 && !ignoreCase) {
-    html += `<tr class="diff-case"><td colspan="2"><strong>Различия в регистре имён процедур</strong></td></tr>`;
+    html += `<tr class="diff-case"><td colspan="2">${window.i18n.t('render.diff.capitalization')}</td></tr>`;
     diffProcs.caseDifferences.forEach((item) => {
       html += `<tr class="diff-case"><td class="indent">${item.sourceName}</td><td class="indent">${item.targetName}</td></tr>`;
     });
@@ -251,14 +250,14 @@ export function renderProcedures(diffProcs, showSchema, hideIdentical, ignoreCas
 }
 
 export function renderDetailedView(diff, showSchema, hideIdentical, ignoreCase) {
-  if (!diff) return '<div class="section"><p>Нет данных для сравнения.</p></div>';
+  if (!diff) return `<div class="section"><p>${window.i18n.t('render.nodatatocompare')}</p></div>`;
   let html = "";
   html += renderTablesDetailed(diff.tables, showSchema, hideIdentical, ignoreCase);
   html += renderProcedures(diff.procedures, showSchema, hideIdentical, ignoreCase);
   return html;
 }
 export function renderGroupedView(diff, showSchema, hideIdentical, ignoreCase) {
-  if (!diff) return '<div class="section"><p>Нет данных для сравнения.</p></div>';
+  if (!diff) return `<div class="section"><p>${window.i18n.t('render.nodatatocompare')}</p></div>`;
   let html = "";
   html += renderTablesGrouped(diff.tables, showSchema, hideIdentical, ignoreCase);
   html += renderProcedures(diff.procedures, showSchema, hideIdentical, ignoreCase);
@@ -266,7 +265,7 @@ export function renderGroupedView(diff, showSchema, hideIdentical, ignoreCase) {
 }
 export function renderComparison(source, target, diff, viewMode, normalizeSchemaEnabled, hideIdentical, ignoreCase) {
   if (!source || !target || !diff) {
-    return '<div class="section"><p>Нет данных для сравнения.</p></div>';
+    return `<div class="section"><p>${window.i18n.t('render.nodatatocompare')}</p></div>`;
   }
   const showSchema = !normalizeSchemaEnabled;
   if (viewMode === "grouped") {

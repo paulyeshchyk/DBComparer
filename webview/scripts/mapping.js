@@ -45,8 +45,8 @@ export function addMappingRow(source = "", target = "") {
   const tbody = document.getElementById("mappingBody");
   const row = document.createElement("tr");
   row.innerHTML = `
-    <td><input type="text" class="mapping-source" value="${source}" placeholder="исходная схема" style="width:100%;"></td>
-    <td><input type="text" class="mapping-target" value="${target}" placeholder="целевая схема" style="width:100%;"></td>
+    <td><input type="text" class="mapping-source" value="${source}" placeholder="${window.i18n.t('mapping.schema.source')}" style="width:100%;"></td>
+    <td><input type="text" class="mapping-target" value="${target}" placeholder="${window.i18n.t('mapping.schema.target')}" style="width:100%;"></td>
     <td><button type="button" class="removeMappingRow" style="background:transparent; border:none; color:var(--vscode-errorForeground); cursor:pointer;">✕</button></td>
   `;
   tbody.appendChild(row);

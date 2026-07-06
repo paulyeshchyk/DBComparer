@@ -1,0 +1,7 @@
+{
+  "cache.empty.text": "Нет сохранённых кэшей.",
+  "cache.table.title": "Сохранённые кэши",
+  "cache.column.src.title": "Источник",
+  "cache.column.dst.title": "Приёмник",
+  "cache.action.title": "Действия"
+}

@@ -52,7 +52,7 @@ function addIncludeFilterRow(pattern = '') {
   const tbody = document.getElementById('includeFiltersBody');
   const row = document.createElement('tr');
   row.innerHTML = `
-        <td><input type="text" class="filter-pattern" value="${pattern}" placeholder="регулярка (например, ^tbl_)"></td>
+        <td><input type="text" class="filter-pattern" value="${pattern}" placeholder="${window.i18n.t('filter.regularexpression.include.placeholder')}"></td>
         <td><button class="remove-filter">✕</button></td>
     `;
   tbody.appendChild(row);
@@ -81,7 +81,7 @@ function addExcludeFilterRow(pattern = '') {
   const tbody = document.getElementById('excludeFiltersBody');
   const row = document.createElement('tr');
   row.innerHTML = `
-        <td><input type="text" class="filter-pattern" value="${pattern}" placeholder="регулярка (например, ^tmp_)"></td>
+        <td><input type="text" class="filter-pattern" value="${pattern}" placeholder="${window.i18n.t('filter.regularexpression.exclude.placeholder')}"></td>
         <td><button class="remove-filter">✕</button></td>
     `;
   tbody.appendChild(row);

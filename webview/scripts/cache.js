@@ -16,16 +16,27 @@ export function loadCacheList() {
     vscode.postMessage({ command: "getCacheList" });
   });
 }
+export function cacheLocalization() {
+  return {
+    noCache: "Cache list is empty",
+    src: "DB 1",
+    dst: "DB 2",
+    actions: "Actions"
+  }
+}
 
 export function renderCacheList(list) {
+
+  const localization = cacheLocalization();
+
   const container = document.getElementById('cacheList');
   if (!list || list.length === 0) {
-    container.innerHTML = '<div class="section"><p>Нет сохранённых кэшей.</p></div>';
+    container.innerHTML = `<div class="section"><p>${localization.noCache}</p></div>`;
     return;
   }
-
-  let html = '<div class="section"><h2>Сохранённые кэши</h2>';
-  html += '<table class="cache-table"><thead><tr><th>#</th><th>Источник</th><th>Приёмник</th><th>Действия</th></tr></thead><tbody>';
+  let html = `<div class="section">`;
+  // html += '<h2>Сохранённые кэши</h2>'
+  html += `<table class="cache-table"><thead><tr><th>#</th><th>${localization.src}</th><th>${localization.dst}</th><th>${localization.actions}</th></tr></thead><tbody>`;
 
   list.forEach((item, index) => {
     const num = index + 1;
@@ -63,6 +74,7 @@ export async function refreshCacheList() {
   const list = await loadCacheList();
   renderCacheList(list);
 }
+
 // =================================================================
 // ПРОВЕРКА КЭША И ОБНОВЛЕНИЕ СОСТОЯНИЯ КНОПОК
 // =================================================================
@@ -83,7 +95,6 @@ export async function checkCacheAndUpdateButton() {
 
   try {
     const list = await loadCacheList();
-    // Сравниваем строки подключения (можно улучшить, вычисляя хэш)
     const hasCache = list.some((item) => item.sourceName === config.source && item.targetName === config.target);
     runBtn.disabled = !hasCache;
 

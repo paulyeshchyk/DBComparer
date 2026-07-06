@@ -8,96 +8,86 @@
     </head>
     <body>
         <div class="app-header">
-            <div class="header-title">DB Schema Compare</div>
+            <div class="header-title">$t('main.title')</div>
             <div class="header-actions">
-                <button id="runBtn">▶ Запустить сравнение</button>
-                <button id="runFromCacheBtn">▶ Запустить сравнение(из кэша)</button>
-                <button id="showLogsBtn">Logs</button>
+                <button id="runBtn">$t('main.button.run')</button>
+                <button id="runFromCacheBtn">$t('main.button.runcache')</button>
+                <button id="showLogsBtn">$t('main.button.logs')</button>
             </div>
         </div>
 
-        <!-- Вкладки -->
         <div class="tabs">
             <div class="tab-headers">
-                <div class="tab-header active" data-tab="settings">Настройки</div>
-                <div class="tab-header" data-tab="mapping">Маппинг схем</div>
-                <div class="tab-header" data-tab="filters">Фильтры</div>
-                <div class="tab-header" data-tab="result">Результат</div>
-                <div class="tab-header" data-tab="cache">Кэш</div>
+                <div class="tab-header active" data-tab="settings">$t('main.tab.setup')</div>
+                <div class="tab-header" data-tab="mapping">$t('main.tab.mapping')</div>
+                <div class="tab-header" data-tab="filters">$t('main.tab.filters')</div>
+                <div class="tab-header" data-tab="cache">$t('main.tab.cache')</div>
+                <div class="tab-header" data-tab="result">$t('main.tab.result')</div>
             </div>
             <div class="tab-contents">
-                <!-- Вкладка "Настройки" (без маппинга) -->
                 <div id="tab-settings" class="tab-content active">
                     <div class="section">
-                        <!-- ПОЛЯ ВВОДА -->
                         <div class="connection-row">
                             <div class="connection-group">
-                                <label><strong>Source:</strong></label>
+                                <label><strong>$t('setup.label.source')</strong></label>
                                 <input id="source" type="text" placeholder="Server=..." value="{{lastSource}}" class="connection" />
                             </div>
                             <div class="connection-group">
-                                <label><strong>Target:</strong></label>
+                                <label><strong>$t('setup.label.target')</strong></label>
                                 <input id="target" type="text" placeholder="Server=..." value="{{lastTarget}}" class="connection" />
                             </div>
                         </div>
                         <hr class="solid" />
-                        <!-- Чекбоксы и радиокнопки -->
                         <div class="options-row">
                             <div class="options-left">
-                                <label><strong>Опции:</strong></label>
+                                <label><strong>$t('setup.label.options')</strong></label>
                                 <br /><br />
-                                <label><input type="checkbox" id="normalizeTypes" checked /> Нормализовать типы</label>
+                                <label><input type="checkbox" id="normalizeTypes" checked /> $t('setup.option.normalizeTypes')</label>
                                 <br />
-                                <label><input type="checkbox" id="normalizeSchemaEnabled" checked /> Нормализовать схемы</label>
+                                <label><input type="checkbox" id="normalizeSchemaEnabled" checked /> $t('setup.option.normalizeSchema')</label>
                                 <br />
-                                <label><input type="checkbox" id="ignoreCase" checked /> Игнорировать регистр</label>
+                                <label><input type="checkbox" id="ignoreCase" checked /> $t('setup.option.ignoreCase')</label>
                                 <br />
-                                <label><input type="checkbox" id="hideIdentical" checked /> Скрывать полностью совпадающие элементы</label>
+                                <label><input type="checkbox" id="hideIdentical" checked /> $t('setup.option.hideIdentical')</label>
                             </div>
                             <div class="options-left">
-                                <label><strong>Режим отображения:</strong></label>
+                                <label><strong>$t('setup.label.viewMode')</strong></label>
                                 <br />
-                                <br /><input type="radio" name="viewMode" value="detailed" checked /> Детальный <br /><input type="radio" name="viewMode" value="grouped" /> Группировка по типам
+                                <br /><input type="radio" name="viewMode" value="detailed" checked /> $t('setup.viewMode.detailed') <br /><input type="radio" name="viewMode" value="grouped" /> $t('setup.viewMode.grouped')
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Вкладка "Маппинг схем" -->
                 <div id="tab-mapping" class="tab-content">
                     <div class="section">
-                        <label><strong>Маппинг схем:</strong></label>
+                        <label><strong>$t('mapping.title')</strong></label>
                         <br />
                         <div id="mappingContainer">
                             <table id="mappingTable">
                                 <thead>
                                     <tr>
-                                        <th>Исходная схема</th>
-                                        <th>Целевая схема</th>
+                                        <th>$t('mapping.table.source')</th>
+                                        <th>$t('mapping.table.target')</th>
                                         <th></th>
                                     </tr>
                                 </thead>
-                                <tbody id="mappingBody">
-                                    <!-- Строки будут добавлены скриптом -->
-                                </tbody>
+                                <tbody id="mappingBody"></tbody>
                             </table>
-                            <button id="addMappingRow" type="button">+ Добавить строку</button>
+                            <button id="addMappingRow" type="button">$t('mapping.button.add')</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Вкладка "Фильтры" -->
                 <div id="tab-filters" class="tab-content">
                     <div class="section">
-                        <h3>Включающие фильтры (OR)</h3>
-                        <p>
-                            <em>Если указаны, то включаются только объекты, соответствующие хотя бы одной регулярке. <code>*</code> означает «все».</em>
-                        </p>
+                        <h3>$t('filters.include.title')</h3>
+                        <p><em>$t('filters.include.desc')</em></p>
                         <div id="includeFiltersContainer">
                             <table class="filter-table">
                                 <thead>
                                     <tr>
-                                        <th>Регулярное выражение</th>
+                                        <th>$t('filters.table.pattern')</th>
                                         <th></th>
                                     </tr>
                                 </thead>
@@ -108,34 +98,32 @@
                                     </tr>
                                 </tbody>
                             </table>
-                            <button id="addIncludeFilter" type="button">+ Добавить включающий фильтр</button>
+                            <button id="addIncludeFilter" type="button">$t('filters.button.addInclude')</button>
                         </div>
 
                         <hr class="solid" />
 
-                        <h3>Исключающие фильтры (OR)</h3>
-                        <p><em>Объекты, соответствующие хотя бы одной регулярке, будут исключены (после применения включающих).</em></p>
+                        <h3>$t('filters.exclude.title')</h3>
+                        <p><em>$t('filters.exclude.desc')</em></p>
                         <div id="excludeFiltersContainer">
                             <table class="filter-table">
                                 <thead>
                                     <tr>
-                                        <th>Регулярное выражение</th>
+                                        <th>$t('filters.table.pattern')</th>
                                         <th></th>
                                     </tr>
                                 </thead>
                                 <tbody id="excludeFiltersBody"></tbody>
                             </table>
-                            <button id="addExcludeFilter" type="button">+ Добавить исключающий фильтр</button>
+                            <button id="addExcludeFilter" type="button">$t('filters.button.addExclude')</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Вкладка "Кэш" -->
                 <div id="tab-cache" class="tab-content">
                     <div id="cacheList"></div>
                 </div>
 
-                <!-- Вкладка "Результат" -->
                 <div id="tab-result" class="tab-content">
                     <div id="result"></div>
                 </div>

@@ -211,21 +211,91 @@ export class ComparePanel {
     private _getWebviewContent(): string {
         const webviewFolder = vscode.Uri.joinPath(this.extensionUri, "webview");
         const htmlPath = vscode.Uri.joinPath(webviewFolder, "index.html");
-        const htmlContent = fs.readFileSync(htmlPath.fsPath, "utf8");
+        const rawHtml = fs.readFileSync(htmlPath.fsPath, "utf8");
 
+        // 1. Получаем переводы (основные + фоллбек)
+        const fallbackTranslations = this._loadFallbackTranslations();
+        const finalTranslations = this._buildFinalTranslations(fallbackTranslations);
+
+        // 2. Обрабатываем HTML (локализация статики + замена путей и переменных)
+        let processedHtml = this._localizeStaticHtml(rawHtml, fallbackTranslations);
+        processedHtml = this._injectI18nScript(processedHtml, finalTranslations);
+        processedHtml = this._injectConfigVariables(processedHtml);
+        processedHtml = this._injectWebviewResourceUris(processedHtml, webviewFolder);
+
+        return processedHtml;
+    }
+
+    /**
+     * Загружает базовый (английский) файл локализации для фоллбека.
+     */
+    private _loadFallbackTranslations(): Record<string, string> {
+        const fallbackPath = vscode.Uri.joinPath(this.extensionUri, "locales", "bundle.l10n.json");
+        try {
+            if (fs.existsSync(fallbackPath.fsPath)) {
+                return JSON.parse(fs.readFileSync(fallbackPath.fsPath, "utf8"));
+            }
+        } catch (e) {
+            console.error("Failed to load fallback translations:", e);
+        }
+        return {};
+    }
+
+    /**
+     * Формирует финальный объект переводов для передачи в скрипты Webview.
+     */
+    private _buildFinalTranslations(fallback: Record<string, string>): Record<string, string> {
+        const finalTranslations: Record<string, string> = {};
+        for (const key of Object.keys(fallback)) {
+            const translated = vscode.l10n.t(key);
+            finalTranslations[key] = translated === key ? fallback[key] : translated;
+        }
+        return finalTranslations;
+    }
+
+    /**
+     * Заменяет конструкции $t('key') в статическом HTML-файле.
+     */
+    private _localizeStaticHtml(html: string, fallback: Record<string, string>): string {
+        return html.replace(/\$t\(['"]([^'"]+)['"]\)/g, (_, key) => {
+            const translated = vscode.l10n.t(key);
+            return translated === key && fallback[key] ? fallback[key] : translated;
+        });
+    }
+
+    /**
+     * Внедряет глобальный JS-объект локализации в тег <head> для динамических скриптов.
+     */
+    private _injectI18nScript(html: string, translations: Record<string, string>): string {
+        const i18nScript = `
+    <script>
+        window.i18n = {
+            _translations: ${JSON.stringify(translations)},
+            t: function(key) { return this._translations[key] || key; }
+        };
+    </script>`;
+        return html.replace("<head>", `<head>${i18nScript}`);
+    }
+
+    /**
+     * Подставляет значения из конфигурации VS Code (Source/Target).
+     */
+    private _injectConfigVariables(html: string): string {
         const config = vscode.workspace.getConfiguration();
         const lastSource = config.get<string>(CONFIG_KEYS.lastSource) || "";
         const lastTarget = config.get<string>(CONFIG_KEYS.lastTarget) || "";
 
-        let processedHtml = htmlContent.replace(/\{\{lastSource\}\}/g, lastSource).replace(/\{\{lastTarget\}\}/g, lastTarget);
+        return html.replace(/\{\{lastSource\}\}/g, lastSource).replace(/\{\{lastTarget\}\}/g, lastTarget);
+    }
 
+    /**
+     * Переводит относительные пути ресурсов (CSS, JS) в специальные Webview URI.
+     */
+    private _injectWebviewResourceUris(html: string, webviewFolder: vscode.Uri): string {
         const styleUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(webviewFolder, "style.css"));
         const scriptUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(webviewFolder, "dist/bundle.js"));
 
-        processedHtml = processedHtml.replace('href="style.css"', `href="${styleUri}"`);
-        processedHtml = processedHtml.replace('src="dist/bundle.js"', `src="${scriptUri}"`);
-
-        return processedHtml;
+        return html.replace('href="style.css"', `href="${styleUri}"`).replace('src="dist/bundle.js"', `src="${scriptUri}"`);
     }
 
     private sendMessage(message: any) {

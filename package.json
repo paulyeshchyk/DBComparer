@@ -6,7 +6,7 @@
     "url": "https://github.com/paulyeshchyk/DBComparer"
   },
   "license": "MIT",
-  "version": "0.3.0",
+  "version": "0.3.68",
   "publisher": "paulyestchick",
   "engines": {
     "vscode": "^1.85.0"
@@ -16,7 +16,12 @@
     "Education"
   ],
   "activationEvents": [],
+  "l10n": "./locales",
   "files": [
+    "package.nls.json",
+    "package.nls.ru.json",
+    "nls_ts.js",
+    "nls_loader.js",
     "out/**/*",
     "webview/**/*",
     "LICENSE"
@@ -74,6 +79,7 @@
     "test": "vscode-test"
   },
   "dependencies": {
+    "@vscode/l10n": "^0.0.18",
     "@vscode/vsce-sign": "^2.0.9",
     "mssql": "^11.0.1",
     "pg": "^8.13.0"
