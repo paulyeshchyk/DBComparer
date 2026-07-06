@@ -6,7 +6,7 @@
     "url": "https://github.com/paulyeshchyk/DBComparer"
   },
   "license": "MIT",
-  "version": "0.3.68",
+  "version": "0.4.0",
   "publisher": "paulyestchick",
   "engines": {
     "vscode": "^1.85.0"
@@ -31,7 +31,7 @@
     "commands": [
       {
         "command": "db-compare.start",
-        "title": "Запустить сравнение",
+        "title": "Open",
         "category": "DB Compare"
       }
     ],

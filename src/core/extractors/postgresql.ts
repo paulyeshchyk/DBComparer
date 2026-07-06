@@ -106,40 +106,7 @@ export class PgMetadataExtractor extends DatabaseMetadataExtractor {
         }
 
         // 4. Получаем все индексы для всех таблиц одним запросом
-        const indexesQuery = `
-            SELECT 
-                n.nspname AS schema_name,
-                t.relname AS table_name,
-                i_rel.relname AS index_name,
-                i.indisunique AS is_unique,
-                i.indisclustered AS is_clustered,
-                am.amname AS index_type,
-                string_agg(a.attname, ', ' ORDER BY array_position(i.indkey, a.attnum)) AS columns
-            FROM pg_index i
-            JOIN pg_class t ON i.indrelid = t.oid
-            JOIN pg_namespace n ON t.relnamespace = n.oid
-            JOIN pg_class i_rel ON i.indexrelid = i_rel.oid
-            JOIN pg_am am ON i_rel.relam = am.oid
-            LEFT JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(i.indkey)
-            WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
-              AND i.indisprimary = false
-            GROUP BY n.nspname, t.relname, i_rel.relname, i.indisunique, i.indisclustered, am.amname
-            ORDER BY n.nspname, t.relname, i_rel.relname
-        `;
-        const indexesResult = await client.query(indexesQuery);
-        const indexesMap = new Map<string, IIndexInfo[]>();
-        for (const row of indexesResult.rows) {
-            const key = `${row.schema_name}.${row.table_name}`;
-            if (!indexesMap.has(key)) indexesMap.set(key, []);
-            const columns = row.columns ? row.columns.split(",").map((c: string) => c.trim()) : [];
-            indexesMap.get(key)!.push({
-                name: row.index_name,
-                columns: columns,
-                isUnique: row.is_unique,
-                isClustered: row.is_clustered || false,
-                indexType: row.index_type,
-            });
-        }
+        const indexesMap = await buildIndexMap(client);
 
         // 5. Собираем таблицы из полученных данных
         const tables: ITableInfo[] = [];
@@ -216,5 +183,47 @@ export class PgMetadataExtractor extends DatabaseMetadataExtractor {
         const procedures = Array.from(procMap.values());
         this.logger.log(`pgsql: extracted ${procedures.length} procedures`);
         return procedures;
+    }
+}
+
+async function buildIndexMap(client: Client) {
+    try {
+        const indexesQuery = `
+            SELECT 
+                n.nspname AS schema_name,
+                t.relname AS table_name,
+                i_rel.relname AS index_name,
+                i.indisunique AS is_unique,
+                i.indisclustered AS is_clustered,
+                am.amname AS index_type,
+                string_agg(a.attname, ', ' ORDER BY array_position(i.indkey, a.attnum)) AS columns
+            FROM pg_index i
+            JOIN pg_class t ON i.indrelid = t.oid
+            JOIN pg_namespace n ON t.relnamespace = n.oid
+            JOIN pg_class i_rel ON i.indexrelid = i_rel.oid
+            JOIN pg_am am ON i_rel.relam = am.oid
+            LEFT JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(i.indkey)
+            WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+              AND i.indisprimary = false
+            GROUP BY n.nspname, t.relname, i_rel.relname, i.indisunique, i.indisclustered, am.amname
+            ORDER BY n.nspname, t.relname, i_rel.relname
+        `;
+        const indexesResult = await client.query(indexesQuery);
+        const indexesMap = new Map<string, IIndexInfo[]>();
+        for (const row of indexesResult.rows) {
+            const key = `${row.schema_name}.${row.table_name}`;
+            if (!indexesMap.has(key)) indexesMap.set(key, []);
+            const columns = row.columns ? row.columns.split(",").map((c: string) => c.trim()) : [];
+            indexesMap.get(key)!.push({
+                name: row.index_name,
+                columns: columns,
+                isUnique: row.is_unique,
+                isClustered: row.is_clustered || false,
+                indexType: row.index_type,
+            });
+        }
+        return indexesMap;
+    } catch {
+        return new Map<string, IIndexInfo[]>();
     }
 }

@@ -334,7 +334,7 @@ export class MetadataAdapter {
             MetadataBuilder.normalizeSchema(config, sourceMeta);
         }
         // Применяем фильтры (используя уже нормализованные схемы)
-        const include = config.options.includeFilters ?? ["*"];
+        const include = config.options.includeFilters?.filter(i => i!=="*") ?? ["*"];
         const exclude = config.options.excludeFilters ?? [];
         const filtered = MetadataBuilder.applyFilters(sourceMeta, include, exclude);
         // Сортируем после фильтрации
@@ -402,7 +402,7 @@ export class Logger {
 
         if (isStatus) {
             this.currentStatus = formattedMessage;
-            this.refresh();
+            this.refresh(true);
         } else {
             this.history.push(formattedMessage);
             this.refresh();
@@ -449,7 +449,13 @@ export class Logger {
     private lastRefreshTime = 0;
     private refreshTimeout: NodeJS.Timeout | null = null;
 
-    private refresh() {
+    private refresh(wantsDelay: boolean = true) {
+        if (!wantsDelay)
+        {
+            this.doActualRefresh();
+            return;    
+        }
+        
         const now = Date.now();
 
         // Если с прошлого обновления прошло меньше 150 мс, откладываем отрисовку

@@ -18,7 +18,6 @@
   "setup.label.viewMode": "Режим отображения:",
   "setup.viewMode.detailed": "Детальный",
   "setup.viewMode.grouped": "Группировка по типам",
-  "mapping.title": "Маппинг схем:",
   "mapping.table.source": "Приводимая схема",
   "mapping.table.target": "Приведённая схема",
   "mapping.button.add": "+ Добавить строку",

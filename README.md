@@ -2,6 +2,13 @@
 
 Comparison of database schemas `MSSQL` ↔ `PostgreSQL` | `MSSQL` ↔ `MSSQL` | `PostgreSQL` ↔ `PostgreSQL`
 
+## Run
+
+* On your keyboard press
+  * mac: `⌘ + ⇧ + P` 
+  * win: `Ctrl + Shift + P`
+* Type `DB Compare: Open`
+
 ## General Description
 
 A Visual Studio Code extension that helps you compare the structure of two databases and shows the differences in a clear table format.
@@ -18,6 +25,16 @@ You can compare any pair:
 - `MSSQL` ↔ `PostgreSQL`
 
 This tool is very useful for database migrations, replication, change audits, and syncing environments (development / testing / production).
+
+### Connection strings
+
+#### postgre
+
+postgresql://reader:NWDMCE5xdipIjRrp@hh-pgsql-public.ebi.ac.uk:5432/pfmegrnargs
+
+#### mssql
+
+Server=myserverhost_or_ip;Database=myDbName;User Id=JohnDoe;Password=mySecretPassword;TrustServerCertificate=True;Encrypt=True;
 
 ## How is it different from other tools?
 
@@ -75,9 +92,9 @@ This helps compare columns at a logical level, ignoring small syntax differences
 
 Big databases often have many temporary tables:
 
-`#tmp_123e4567-e89b-12d3-a456-426614174000`  
-`_temp_2025_03_15`  
-`tbl_Backup_*`
+`.*#tmp_123e4567-e89b-12d3-a456-426614174000.*`  
+`.*_temp_2025_03_15.*`  
+`.*tbl_Backup_.*`
 
 These objects make the comparison messy and slow.
 
@@ -89,10 +106,10 @@ Filters help you control what you see:
 Example of useful exclude rules for temporary tables:
 
 ```
-^#tmp_
-^temp
-^tbl_Backup_
-^.*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+.*#tmp_.*
+.*temp.*
+.*tbl_Backup_.*
+.*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
 ```
 
 **Tip**: Use include filters to check only specific schemas, and exclude filters to remove "garbage".
