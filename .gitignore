@@ -1,2 +1,4 @@
 ﻿**/node_modules
 **/out
+webview/dist/bundle.js
+**/build

@@ -1,3 +1,5 @@
+// extension.ts
+
 import * as vscode from 'vscode';
 import { ComparePanel } from './webview/compare-panel';
 
@@ -11,4 +13,4 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(disposable);
 }
 
-export function deactivate() {}
+export function deactivate() { }

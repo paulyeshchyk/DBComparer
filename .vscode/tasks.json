@@ -1,0 +1,72 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build: Production (VSIX)",
+      "type": "shell",
+      "command": "npm run build:prod",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "clear": true,
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Release: Increment Patch",
+      "type": "shell",
+      "command": "npm run release:patch",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "clear": true,
+        "panel": "shared",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Release: Increment Minor",
+      "type": "shell",
+      "command": "npm run release:minor",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "clear": true,
+        "panel": "shared",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Watch (for Debugging)",
+      "type": "shell",
+      "command": "npm run watch",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^.*",
+          "endsPattern": "^.*"
+        }
+      },
+      "presentation": {
+        "clear": true,
+        "reveal": "silent",
+        "panel": "shared",
+        "focus": false
+      }
+    }
+  ]
+}

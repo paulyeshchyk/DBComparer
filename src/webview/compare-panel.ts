@@ -1,493 +1,906 @@
-import * as vscode from 'vscode';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as crypto from 'crypto';
-import { MetadataBuilder } from '../core/metadata-builder';
-import { ExtractorBuilder } from '../core/extractors/builder';
-import { ColumnInfo, ConnectionConfig, DatabaseMetadata, IndexInfo, ProcedureInfo, TableInfo } from '../core/types';
+// src/webview/compare-panel.ts
+
+import * as crypto from "crypto";
+import * as fs from "fs";
+import * as path from "path";
+import * as vscode from "vscode";
+import { ExtractorBuilder } from "../core/extractors/builder";
+import { MetadataBuilder } from "../core/metadata-builder";
+import { CompareOptions, DatabaseMetadata, ICacheManager, IColumnDiff, IColumnInfo, IComparator, ICompareResult, IConnectionConfig, IIndexDiff, IIndexInfo, IMetadataDiff, IParameterDiff, IParameterInfo, IProcedureDiff, IProcedureInfo, ITableDiff, ITableInfo } from "../core/types";
 
 const CONFIG_KEYS = {
-  lastSource: 'db-compare.lastSource',
-  lastTarget: 'db-compare.lastTarget'
+    lastSource: "db-compare.lastSource",
+    lastTarget: "db-compare.lastTarget",
 };
 
 export class ComparePanel {
-  public static currentPanel: ComparePanel | undefined;
-  private readonly _panel: vscode.WebviewPanel;
-  private _disposables: vscode.Disposable[] = [];
+    private static currentPanel: ComparePanel | undefined;
+    private readonly _panel: vscode.WebviewPanel;
+    private _disposables: vscode.Disposable[] = [];
+    private logger = Logger.getInstance();
+    private cacheManager: ICacheManager;
+    private comparator: IComparator;
 
-  public static createOrShow(extensionUri: vscode.Uri, context: vscode.ExtensionContext) {
-    if (ComparePanel.currentPanel) {
-      ComparePanel.currentPanel._panel.reveal();
-      return;
-    }
-
-    const panel = vscode.window.createWebviewPanel('dbCompare', 'DB Schema Compare', vscode.ViewColumn.One, {
-      enableScripts: true,
-      retainContextWhenHidden: true,
-      localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'webview')]
-    });
-
-    ComparePanel.currentPanel = new ComparePanel(panel, extensionUri, context);
-  }
-
-  private constructor(
-    panel: vscode.WebviewPanel,
-    private readonly extensionUri: vscode.Uri,
-    private readonly context: vscode.ExtensionContext
-  ) {
-    this._panel = panel;
-    this._panel.webview.html = this._getWebviewContent();
-
-    this._panel.webview.onDidReceiveMessage(
-      async (message) => {
-        switch (message.command) {
-          case 'compare':
-            await this.runComparison(message.config);
-            break;
+    public static createOrShow(extensionUri: vscode.Uri, context: vscode.ExtensionContext) {
+        if (ComparePanel.currentPanel) {
+            ComparePanel.currentPanel._panel.reveal();
+            return;
         }
-      },
-      null,
-      this._disposables
-    );
-
-    this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
-  }
-
-  // ---------- Кеширование ----------
-  private getCacheDir(): string {
-    const cacheDir = path.join(this.context.globalStoragePath, 'cache');
-    if (!fs.existsSync(cacheDir)) {
-      fs.mkdirSync(cacheDir, { recursive: true });
-    }
-    return cacheDir;
-  }
-
-  private getCachePath(hash: string): string {
-    return path.join(this.getCacheDir(), `${hash}.json`);
-  }
-
-  private computeHash(sourceConn: string, targetConn: string): string {
-    const data = sourceConn + '||' + targetConn;
-    return crypto.createHash('sha256').update(data).digest('hex');
-  }
-
-  private saveCache(hash: string, data: any): void {
-    const cachePath = this.getCachePath(hash);
-    fs.writeFileSync(cachePath, JSON.stringify(data), 'utf8');
-  }
-
-  private loadCache(hash: string): any | null {
-    const cachePath = this.getCachePath(hash);
-    if (fs.existsSync(cachePath)) {
-      try {
-        const content = fs.readFileSync(cachePath, 'utf8');
-        return JSON.parse(content);
-      } catch {
-        // Если файл повреждён, удаляем и возвращаем null
-        fs.unlinkSync(cachePath);
-        return null;
-      }
-    }
-    return null;
-  }
-
-  private deleteCache(hash: string): void {
-    const cachePath = this.getCachePath(hash);
-    if (fs.existsSync(cachePath)) {
-      fs.unlinkSync(cachePath);
-    }
-  }
-
-  private formatColumnDesc(col: ColumnInfo): string {
-    let desc = col.dataType || '';
-    if (col.isNullable === false) desc += ' NOT NULL';
-    else desc += ' NULL';
-    if (col.isPrimaryKey) desc += ' PK';
-    return desc;
-  }
-  // ---------- Основная логика ----------
-  private async runComparison(rawConfig: any) {
-    const sourceConn = rawConfig.source;
-    const targetConn = rawConfig.target;
-    const useCache = rawConfig.useCache ?? false;
-    const ignoreCase = rawConfig.ignoreCase ?? true;
-    const normalizeTypes = rawConfig.normalizeTypes ?? true;
-    const normalizeSchemaEnabled = rawConfig.normalizeSchemaEnabled ?? true;
-    const normalizeSchema = rawConfig.normalizeSchema; // объект из UI
-
-    const config: ConnectionConfig = {
-      source: { connectionString: sourceConn },
-      target: { connectionString: targetConn },
-      options: {
-        normalizeTypes: normalizeTypes,
-        normalizeSchemaEnabled: normalizeSchemaEnabled,
-        normalizeSchema: normalizeSchema && Object.keys(normalizeSchema).length > 0 ? normalizeSchema : undefined,
-        ignoreCase: ignoreCase
-      }
-    };
-
-    // Сохраняем последние значения в настройки
-    await vscode.workspace.getConfiguration().update(CONFIG_KEYS.lastSource, sourceConn, vscode.ConfigurationTarget.Global);
-    await vscode.workspace.getConfiguration().update(CONFIG_KEYS.lastTarget, targetConn, vscode.ConfigurationTarget.Global);
-
-    const hash = this.computeHash(sourceConn, targetConn);
-
-    let sourceRaw: DatabaseMetadata | null = null;
-    let targetRaw: DatabaseMetadata | null = null;
-
-    // Проверка кеша
-    if (useCache) {
-      const cached = this.loadCache(hash);
-      if (cached) {
-        sourceRaw = cached.source;
-        targetRaw = cached.target;
-      }
-    } else {
-      this.deleteCache(hash);
-    }
-
-    // Если нет кеша – извлекаем из БД
-    if (!sourceRaw || !targetRaw) {
-      try {
-        this.sendMessage({ command: 'loading', status: true, message: 'Подключение к бд-источнику...' });
-
-        const sourceExtractor = ExtractorBuilder.createExtractor(sourceConn);
-        const targetExtractor = ExtractorBuilder.createExtractor(targetConn);
-
-        if (!sourceExtractor || !targetExtractor) {
-          throw new Error('Не удалось определить тип одной из баз данных');
-        }
-
-        this.sendMessage({ command: 'loading', status: true, message: 'Извлечение метаданных из источника...' });
-        sourceRaw = await sourceExtractor.extractMetadataAsync();
-
-        this.sendMessage({ command: 'loading', status: true, message: 'Извлечение метаданных из приёмника...' });
-        targetRaw = await targetExtractor.extractMetadataAsync();
-
-        if (useCache) {
-          this.saveCache(hash, { source: sourceRaw, target: targetRaw });
-        }
-      } catch (err: any) {
-        this.sendMessage({
-          command: 'error',
-          message: err.message || 'Неизвестная ошибка'
+        const panel = vscode.window.createWebviewPanel("dbCompare", "DB Schema Compare", vscode.ViewColumn.One, {
+            enableScripts: true,
+            retainContextWhenHidden: true,
+            localResourceRoots: [vscode.Uri.joinPath(extensionUri, "webview"), vscode.Uri.joinPath(extensionUri, "webview/scripts")],
         });
-        vscode.window.showErrorMessage(`DB Compare: ${err.message}`);
-        this.sendMessage({ command: 'loading', status: false });
-        return;
-      }
+        ComparePanel.currentPanel = new ComparePanel(panel, extensionUri, context);
     }
 
-    // Применяем нормализацию
-    try {
-      const sourceMeta = JSON.parse(JSON.stringify(sourceRaw));
-        const targetMeta = JSON.parse(JSON.stringify(targetRaw));
-        // Применяем нормализацию (если нужно)
+    private async webViewMessageHandler(message: any) {
+        this.logger.log(MESSAGES.DID_RECEIVE_MESSAGE(message.command));
+
+        switch (message.command) {
+            case COMMANDS.COMPARE:
+                await this.runComparison(message.config, message.useCache);
+                break;
+            case COMMANDS.SAVE_CACHE:
+                this.cacheManager.saveCache(message.hash, message.data);
+                break;
+            case COMMANDS.GET_CACHE_LIST:
+                const list = this.cacheManager.getCacheList();
+                this.sendMessage({ command: COMMANDS.CACHE_LIST, list });
+                break;
+            case COMMANDS.DELETE_CACHE:
+                await this.deleteCacheWithConfirm(message.hash);
+                break;
+            case COMMANDS.SHOW_LOGS:
+                await vscode.commands.executeCommand("workbench.action.output.toggleOutput");
+                this.logger.show();
+                break;
+            case COMMANDS.EXPORT_CACHE:
+                await this.exportCacheFile(message.hash);
+                break;
+        }
+    }
+
+    private constructor(
+        panel: vscode.WebviewPanel,
+        private readonly extensionUri: vscode.Uri,
+        private readonly context: vscode.ExtensionContext,
+    ) {
+        this._panel = panel;
+        this._panel.webview.html = this._getWebviewContent();
+        this.cacheManager = new CacheManager(context);
+        this.comparator = new Comparator();
+
+        this._panel.webview.onDidReceiveMessage((msg) => this.webViewMessageHandler(msg), null, this._disposables);
+
+        this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
+    }
+
+    private async deleteCacheWithConfirm(hash: string): Promise<void> {
+        const confirm = await vscode.window.showWarningMessage(MESSAGES.DELETE_CACHE_CONFIRM, { modal: true }, MESSAGES.DELETE_CACHE_CONFIRM_YES, MESSAGES.DELETE_CACHE_CONFIRM_NO);
+        if (confirm === MESSAGES.DELETE_CACHE_CONFIRM_YES) {
+            this.cacheManager.deleteCacheFile(hash);
+            this.sendMessage({ command: COMMANDS.CACHE_DELETED });
+            vscode.window.showInformationMessage(MESSAGES.CACHE_DELETED_SUCCESS);
+        }
+    }
+
+    private async exportCacheFile(hash: string): Promise<void> {
+        const cachePath = this.cacheManager.getCachePath(hash);
+        if (!fs.existsSync(cachePath)) {
+            vscode.window.showErrorMessage(MESSAGES.CACHE_FILE_NOT_FOUND);
+            return;
+        }
+
+        const uri = await vscode.window.showOpenDialog({
+            canSelectFolders: true,
+            canSelectFiles: false,
+            canSelectMany: false,
+            title: MESSAGES.EXPORT_SELECT_FOLDER,
+        });
+
+        if (!uri || uri.length === 0) return;
+
+        try {
+            const targetPath = this.cacheManager.exportCache(uri[0].fsPath, hash);
+            if (targetPath) {
+                this.sendMessage({ command: COMMANDS.CACHE_EXPORTED });
+                vscode.window.showInformationMessage(MESSAGES.EXPORT_SUCCESS(targetPath));
+            } else {
+                vscode.window.showErrorMessage(MESSAGES.EXPORT_FAILED);
+            }
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            vscode.window.showErrorMessage(MESSAGES.EXPORT_ERROR(msg));
+        }
+    }
+
+    private sendResult(source: any, target: any, diff: any, viewMode: string, config: IConnectionConfig) {
+        this.sendMessage({
+            command: COMMANDS.RESULT,
+            source,
+            target,
+            diff,
+            viewMode,
+            normalizeSchemaEnabled: config.options.normalizeSchemaEnabled,
+            hideIdentical: config.options.hideIdentical ?? DEFAULT_VALUES.HIDE_IDENTICAL,
+            ignoreCase: config.options.ignoreCase ?? DEFAULT_VALUES.IGNORE_CASE,
+            config: {
+                source: config.source.connectionString,
+                target: config.target.connectionString,
+            },
+        });
+    }
+
+    private async saveLastConfig(config: IConnectionConfig) {
+        this.logger.log(MESSAGES.SAVE_LAST_CONFIG);
+        await vscode.workspace.getConfiguration().update(CONFIG_KEYS.lastSource, config.source.connectionString, vscode.ConfigurationTarget.Global);
+        await vscode.workspace.getConfiguration().update(CONFIG_KEYS.lastTarget, config.target.connectionString, vscode.ConfigurationTarget.Global);
+    }
+
+    private sendLoading(message: string) {
+        this.logger.log(message);
+        this.sendMessage({ command: COMMANDS.LOADING, status: true, message });
+    }
+
+    private sendError(message: string) {
+        this.logger.error(message);
+        this.sendMessage({ command: COMMANDS.ERROR, message });
+        vscode.window.showErrorMessage(MESSAGES.COMPARE_ERROR(message));
+    }
+
+    private async runComparison(rawConfig: any, rawUseCache: any) {
+        const useCache = rawUseCache ?? false;
+        const config = ConfigBuilder.build(rawConfig);
+        const viewMode = rawConfig.viewMode || DEFAULT_VALUES.VIEW_MODE;
+
+        this.logger.wipe();
+
+        await this.saveLastConfig(config);
+
+        const hash = this.cacheManager.computeHash(config.source.connectionString, config.target.connectionString);
+
+        let sourceRaw: DatabaseMetadata | null = null;
+        let targetRaw: DatabaseMetadata | null = null;
+
+        // Если запрошен кэш – пытаемся загрузить сырые данные
+        if (useCache) {
+            const cached = this.cacheManager.loadCache(hash);
+            if (cached?.source && cached?.target) {
+                sourceRaw = cached.source;
+                targetRaw = cached.target;
+            }
+        }
+
+        // Если сырых данных нет – извлекаем из БД и сохраняем в кэш
+        if (!sourceRaw || !targetRaw) {
+            try {
+                this.sendLoading(MESSAGES.CONNECTING_SOURCE);
+                const sourceExtractor = ExtractorBuilder.createExtractor(config.source.connectionString);
+                const targetExtractor = ExtractorBuilder.createExtractor(config.target.connectionString);
+                if (!sourceExtractor || !targetExtractor) {
+                    throw new Error(MESSAGES.UNKNOWN_DB_TYPE);
+                }
+
+                this.sendLoading(MESSAGES.EXTRACTING_SOURCE);
+                sourceRaw = await sourceExtractor.extractMetadataAsync();
+
+                this.sendLoading(MESSAGES.EXTRACTING_TARGET);
+                targetRaw = await targetExtractor.extractMetadataAsync();
+
+                // Сохраняем в кэш (без diff)
+                this.cacheManager.saveCache(hash, { source: sourceRaw, target: targetRaw });
+            } catch (err: any) {
+                const msg = err instanceof Error ? err.message : String(err);
+                this.logger.error(msg);
+                this.sendError(msg);
+                return;
+            }
+        }
+
+        // Теперь у нас есть сырые данные – применяем нормализацию и вычисляем diff
+        try {
+            const sourceMeta = MetadataAdapter.adapt(sourceRaw, config);
+            const targetMeta = MetadataAdapter.adapt(targetRaw, config);
+            const compareOptions = new CompareOptions(config.options.ignoreCase ?? DEFAULT_VALUES.IGNORE_CASE, config.options.hideIdentical ?? DEFAULT_VALUES.HIDE_IDENTICAL);
+            const diff = this.comparator.compareMetadata(sourceMeta, targetMeta, compareOptions);
+            this.sendResult(sourceMeta, targetMeta, diff, viewMode, config);
+        } catch (err: any) {
+            this.sendError(err.message || MESSAGES.UNKNOWN_ERROR);
+        }
+    }
+
+    // ---------- Webview ----------
+    private _getWebviewContent(): string {
+        const webviewFolder = vscode.Uri.joinPath(this.extensionUri, "webview");
+        const htmlPath = vscode.Uri.joinPath(webviewFolder, "index.html");
+        const htmlContent = fs.readFileSync(htmlPath.fsPath, "utf8");
+
+        const config = vscode.workspace.getConfiguration();
+        const lastSource = config.get<string>(CONFIG_KEYS.lastSource) || "";
+        const lastTarget = config.get<string>(CONFIG_KEYS.lastTarget) || "";
+
+        let processedHtml = htmlContent.replace(/\{\{lastSource\}\}/g, lastSource).replace(/\{\{lastTarget\}\}/g, lastTarget);
+
+        const styleUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(webviewFolder, "style.css"));
+        const scriptUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(webviewFolder, "dist/bundle.js"));
+
+        processedHtml = processedHtml.replace('href="style.css"', `href="${styleUri}"`);
+        processedHtml = processedHtml.replace('src="dist/bundle.js"', `src="${scriptUri}"`);
+
+        return processedHtml;
+    }
+
+    private sendMessage(message: any) {
+        this._panel.webview.postMessage(message);
+    }
+
+    public dispose() {
+        ComparePanel.currentPanel = undefined;
+        this._disposables.forEach((d) => d.dispose());
+    }
+}
+
+export class Comparator implements IComparator {
+    private tableComparator = new TableComparator();
+    private procComparator = new ProcedureComparator();
+    private logger = Logger.getInstance();
+
+    compareMetadata(source: DatabaseMetadata, target: DatabaseMetadata, options: CompareOptions): IMetadataDiff {
+        this.logger.log(`Compare - ignore case:${options.ignoreCase}; hideIdentical:${options.hideIdentical}; source:${source.connectionString}; target:${target.connectionString}`);
+
+        const tablesResult = this.tableComparator.compareTables(source.tables, target.tables, options);
+        const procsResult = this.procComparator.compareProcedures(source.procedures, target.procedures, options);
+
+        return new MetadataDiffResult(tablesResult, procsResult);
+    }
+}
+
+export class MetadataAdapter {
+    public static adapt(sourceRaw: DatabaseMetadata, config: IConnectionConfig) {
+        // Применяем нормализацию к сырым данным
+        const sourceMeta = JSON.parse(JSON.stringify(sourceRaw));
+
         if (config.options.normalizeTypes) {
             MetadataBuilder.normalizeTypes(sourceMeta);
-            MetadataBuilder.normalizeTypes(targetMeta);
         }
         if (config.options.normalizeSchemaEnabled) {
             MetadataBuilder.normalizeSchema(config, sourceMeta);
-            MetadataBuilder.normalizeSchema(config, targetMeta);
         }
         MetadataBuilder.resort(sourceMeta);
-        MetadataBuilder.resort(targetMeta);
-
-        const diff = this.compareMetadata(sourceMeta, targetMeta, config.options.ignoreCase ?? false);
-
-        this.sendMessage({
-            command: 'result',
-            source: sourceMeta,
-            target: targetMeta,
-            diff: diff,
-            viewMode: rawConfig.viewMode || 'detailed',
-            normalizeSchemaEnabled: config.options.normalizeSchemaEnabled
-        });
-    } catch (err: any) {
-      this.sendMessage({
-        command: 'error',
-        message: err.message || 'Неизвестная ошибка'
-      });
-      vscode.window.showErrorMessage(`DB Compare: ${err.message}`);
-    } finally {
-      this.sendMessage({ command: 'loading', status: false });
+        return sourceMeta;
     }
-  }
-  private formatIndexDesc(idx: IndexInfo): string {
-    let desc = '';
-    if (idx.isUnique) desc += 'UNIQUE ';
-    if (idx.isClustered) desc += 'CLUSTERED ';
-    if (idx.columns) desc += `(${idx.columns.join(', ')})`;
-    return desc.trim();
-  }
-  // ---------- Сравнение метаданных с учётом регистра ----------
-  private compareMetadata(source: DatabaseMetadata, target: DatabaseMetadata, ignoreCase: boolean) {
-    const normalize = (schema: string, name: string) =>
-      MetadataBuilder.normalizeName(schema, name, ignoreCase);
+}
+interface ProgressFormatResult {
+    formattedCurrent: string; // Строка с ведущими нулями, например '001'
+    formattedTotal: string; // Общее количество в виде строки, например '202'
+    formattedStr: string; // Готовая строка вида '[001/202]'
+}
 
-    // --- Таблицы ---
-    const allTables = new Map<string, { source: TableInfo | null, target: TableInfo | null }>();
-    (source.tables || []).forEach(t => {
-      const key = normalize(t.schema, t.name);
-      if (!allTables.has(key)) allTables.set(key, { source: null, target: null });
-      allTables.get(key)!.source = t;
-    });
-    (target.tables || []).forEach(t => {
-      const key = normalize(t.schema, t.name);
-      if (!allTables.has(key)) allTables.set(key, { source: null, target: null });
-      allTables.get(key)!.target = t;
-    });
+export class Logger {
+    private static instance: Logger;
+    private channel: vscode.OutputChannel;
+    private static outputChannelName: string = "DB Compare";
 
-    const onlyInSource: TableInfo[] = [];
-    const onlyInTarget: TableInfo[] = [];
-    const commonTables: {
-      schema: string,
-      name: string,
-      columns: {
-        onlyInSource: string[],
-        onlyInTarget: string[],
-        diff: { name: string, sourceType: string, targetType: string }[],
-        caseDiff: { name: string, sourceName: string, targetName: string }[]
-      },
-      indexes: {
-        onlyInSource: string[];
-        onlyInTarget: string[];
-        diff: {
-          name: string;
-          sourceDesc: string;
-          targetDesc: string;
-        }[];
-        caseDiff: {
-          name: string;
-          sourceName: string;
-          targetName: string;
-        }[];
-      }
-    }[] = [];
-    const caseDifferences: { schema: string, name: string, sourceName: string, targetName: string }[] = [];
+    public formatProgress(index: number, array: any[]): ProgressFormatResult {
+        const totalCount = array.length;
+        const currentStep = index + 1; // Переводим индекс 0-based в человеческий счет от 1
 
-    for (let [key, pair] of allTables) {
-      if (pair.source && !pair.target) {
-        onlyInSource.push(pair.source);
-      } else if (!pair.source && pair.target) {
-        onlyInTarget.push(pair.target);
-      } else {
-        const src = pair.source!;
-        const tgt = pair.target!;
+        // Вычисляем максимальную длину самого большого числа
+        const maxLength = totalCount.toString().length;
+
+        // Добавляем ведущие нули
+        const formattedCurrent = currentStep.toString().padStart(maxLength, "0");
+        const formattedTotal = totalCount.toString();
+        const formattedStr = `[${formattedCurrent}/${formattedTotal}]`;
+
+        return {
+            formattedCurrent,
+            formattedTotal,
+            formattedStr,
+        };
+    }
+
+    // Хранилище для постоянной истории логов
+    private history: string[] = [];
+    // Переменная для одной динамической строки (например, прогресса)
+    private currentStatus: string | null = null;
+
+    private constructor() {
+        this.channel = vscode.window.createOutputChannel(Logger.outputChannelName);
+    }
+
+    static getOutputChannelName(): string {
+        return Logger.outputChannelName;
+    }
+
+    static getInstance(): Logger {
+        if (!Logger.instance) {
+            Logger.instance = new Logger();
+        }
+        return Logger.instance;
+    }
+
+    /**
+     * Обычный лог.
+     * @param isStatus Если true, строка перезапишет предыдущий статус вместо добавления в историю.
+     */
+    log(message: string, isStatus: boolean = false) {
+        let dateTime = new Date();
+        const formattedMessage = `${dateTime.toLocaleString()} [Info]: ${message}`;
+
+        if (isStatus) {
+            this.currentStatus = formattedMessage;
+            this.refresh();
+        } else {
+            this.history.push(formattedMessage);
+            this.refresh();
+        }
+    }
+
+    error(message: string) {
+        let dateTime = new Date();
+        const formattedMessage = `${dateTime.toLocaleString()} [Err ]: ${message}`;
+
+        this.history.push(formattedMessage);
+        this.refresh();
+    }
+
+    /**
+     * Специальный метод для фиксации/завершения статуса.
+     * Превращает текущую строку статуса в обычный постоянный лог.
+     */
+    commitStatus() {
+        if (this.currentStatus) {
+            this.history.push(this.currentStatus);
+            this.currentStatus = null;
+            this.refresh();
+        }
+    }
+
+    /**
+     * Сбросить текущую временную строку без сохранения в историю
+     */
+    clearStatus() {
+        this.currentStatus = null;
+        this.refresh();
+    }
+
+    wipe() {
+        this.history = [];
+        this.channel.clear();
+    }
+
+    show() {
+        this.channel.show();
+    }
+
+    private lastRefreshTime = 0;
+    private refreshTimeout: NodeJS.Timeout | null = null;
+
+    private refresh() {
+        const now = Date.now();
+
+        // Если с прошлого обновления прошло меньше 150 мс, откладываем отрисовку
+        if (now - this.lastRefreshTime < 150) {
+            if (this.refreshTimeout) clearTimeout(this.refreshTimeout);
+
+            this.refreshTimeout = setTimeout(() => this.doActualRefresh(), 150);
+            return;
+        }
+
+        if (this.refreshTimeout) clearTimeout(this.refreshTimeout);
+        this.doActualRefresh();
+    }
+
+    // Тот самый метод, который раньше был просто refresh
+    private doActualRefresh() {
+        this.lastRefreshTime = Date.now();
+        this.channel.clear();
+
+        for (const line of this.history) {
+            this.channel.appendLine(line);
+        }
+        if (this.currentStatus) {
+            this.channel.appendLine(this.currentStatus);
+        }
+    }
+}
+
+export class ConfigBuilder {
+    static build(rawConfig: any): IConnectionConfig {
+        const sourceConn = rawConfig.source;
+        const targetConn = rawConfig.target;
+        const ignoreCase = rawConfig.ignoreCase ?? true;
+        const normalizeTypes = rawConfig.normalizeTypes ?? true;
+        const normalizeSchemaEnabled = rawConfig.normalizeSchemaEnabled ?? true;
+        const normalizeSchema = rawConfig.normalizeSchema;
+        const hideIdentical = rawConfig.hideIdentical ?? false;
+
+        return {
+            source: { connectionString: sourceConn },
+            target: { connectionString: targetConn },
+            options: {
+                normalizeTypes,
+                normalizeSchemaEnabled,
+                normalizeSchema: normalizeSchema && Object.keys(normalizeSchema).length > 0 ? normalizeSchema : undefined,
+                ignoreCase,
+                hideIdentical,
+            },
+        };
+    }
+}
+
+export class CacheManager implements ICacheManager {
+    private logger = Logger.getInstance();
+
+    constructor(private readonly context: vscode.ExtensionContext) {}
+
+    getCacheDir(): string {
+        const cacheDir = path.join(this.context.globalStorageUri.fsPath, "cache");
+        if (!fs.existsSync(cacheDir)) {
+            fs.mkdirSync(cacheDir, { recursive: true });
+        }
+        return cacheDir;
+    }
+
+    getCachePath(hash: string): string {
+        return path.join(this.getCacheDir(), `${hash}.json`);
+    }
+
+    computeHash(sourceConn: string, targetConn: string): string {
+        const data = sourceConn + "||" + targetConn;
+        return crypto.createHash("sha256").update(data).digest("hex");
+    }
+
+    saveCache(hash: string, data: any): void {
+        const cachePath = this.getCachePath(hash);
+        fs.writeFileSync(cachePath, JSON.stringify(data, null, 2), "utf8");
+        this.logger.log(`Cache saved for ${hash}; path: ${cachePath}`);
+    }
+
+    loadCache(hash: string): any | null {
+        const cachePath = this.getCachePath(hash);
+        if (!fs.existsSync(cachePath)) {
+            this.logger.log(`Load cache failed: ${hash}; file not exists`);
+            return null;
+        }
+        try {
+            this.logger.log(`Load cache for ${hash}; path: ${cachePath}`);
+
+            const content = fs.readFileSync(cachePath, "utf8");
+            return JSON.parse(content);
+        } catch (err) {
+            this.logger.error(`Failed to load cache ${hash}: ${err}`);
+            fs.unlinkSync(cachePath);
+            return null;
+        }
+    }
+
+    deleteCacheFile(hash: string): void {
+        const cachePath = this.getCachePath(hash);
+        if (fs.existsSync(cachePath)) {
+            try {
+                fs.unlinkSync(cachePath);
+                this.logger.log(`Cache deleted: ${cachePath}`);
+            } catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                this.logger.error(`Failed to delete cache: ${cachePath}; ${msg}`);
+
+                throw e;
+            }
+        }
+    }
+
+    getCacheList(): any[] {
+        const cacheDir = this.getCacheDir();
+        const files = fs.readdirSync(cacheDir);
+        const list: any[] = [];
+
+        for (const file of files) {
+            if (!file.endsWith(".json")) continue;
+            const fullPath = path.join(cacheDir, file);
+            try {
+                const data = JSON.parse(fs.readFileSync(fullPath, "utf8"));
+                const hash = path.basename(file, ".json");
+                const { sourceName, targetName } = this.extractNames(data);
+                list.push({
+                    hash,
+                    sourceName,
+                    targetName,
+                    timestamp: data.timestamp || 0,
+                });
+            } catch (err) {
+                this.logger.error(`Failed to read cache file ${file}: ${err}`);
+            }
+        }
+        list.sort((a, b) => b.timestamp - a.timestamp);
+        return list;
+    }
+
+    exportCache(targetDir: string, hash: string): string | null {
+        const cachePath = this.getCachePath(hash);
+        if (!fs.existsSync(cachePath)) {
+            return null;
+        }
+
+        // Создаём папку, если её нет
+        if (!fs.existsSync(targetDir)) {
+            fs.mkdirSync(targetDir, { recursive: true });
+        }
+
+        const fileName = `cache_${hash}.json`;
+        const targetPath = path.join(targetDir, fileName);
+
+        fs.copyFileSync(cachePath, targetPath);
+        return targetPath;
+    }
+
+    private extractNames(data: any): { sourceName: string; targetName: string } {
+        let sourceName = "—";
+        let targetName = "—";
+        if (data.config) {
+            sourceName = data.config.source || "—";
+            targetName = data.config.target || "—";
+        } else if (data.source && data.target) {
+            sourceName = data.source.connectionString || "—";
+            targetName = data.target.connectionString || "—";
+        }
+        return { sourceName, targetName };
+    }
+}
+
+export const COMMANDS = {
+    COMPARE: "compare",
+    SAVE_CACHE: "saveCache",
+    GET_CACHE_LIST: "getCacheList",
+    DELETE_CACHE: "deleteCache",
+    EXPORT_CACHE: "exportCache",
+    CACHE_LIST: "cacheList",
+    CACHE_DELETED: "cacheDeleted",
+    CACHE_EXPORTED: "cacheExported",
+    SHOW_LOGS: "showLogsOutputChannel",
+    LOADING: "loading",
+    ERROR: "error",
+    RESULT: "result",
+} as const;
+
+export const MESSAGES = {
+    DELETE_CACHE_CONFIRM: "Удалить этот кэш?",
+    DELETE_CACHE_CONFIRM_YES: "Удалить",
+    DELETE_CACHE_CONFIRM_NO: "Отмена",
+    CACHE_DELETED_SUCCESS: "Кэш удалён",
+    CACHE_FILE_NOT_FOUND: "Файл кэша не найден",
+    EXPORT_SELECT_FOLDER: "Выберите папку для экспорта кэша",
+    EXPORT_SUCCESS: (path: string) => `Кэш экспортирован в ${path}`,
+    EXPORT_FAILED: "Кэш не экспортирован",
+    EXPORT_ERROR: (error: string) => `Ошибка экспорта: ${error}`,
+    CONNECTING_SOURCE: "Подключение к бд-источнику...",
+    EXTRACTING_SOURCE: "Извлечение метаданных из источника...",
+    EXTRACTING_TARGET: "Извлечение метаданных из приёмника...",
+    UNKNOWN_DB_TYPE: "Не удалось определить тип одной из баз данных",
+    UNKNOWN_ERROR: "Неизвестная ошибка",
+    COMPARE_ERROR: (msg: string) => `DB Compare: ${msg}`,
+    CACHE_SAVED: (hash: string, path: string) => `Cache saved for ${hash}; path: ${path}`,
+    CACHE_LOAD_FAILED_NO_FILE: (hash: string) => `Load cache failed: ${hash}; file not exists`,
+    CACHE_LOADED: (hash: string, path: string) => `Load cache for ${hash}; path: ${path}`,
+    CACHE_LOAD_ERROR: (hash: string, error: string) => `Failed to load cache ${hash}: ${error}`,
+    CACHE_DELETED: (path: string) => `Cache deleted: ${path}`,
+    CACHE_DELETE_ERROR: (path: string, error: string) => `Failed to delete cache: ${path}; ${error}`,
+    CACHE_READ_ERROR: (file: string, error: string) => `Failed to read cache file ${file}: ${error}`,
+    DID_RECEIVE_MESSAGE: (cmd: string) => `didreceivemessage: ${cmd}`,
+    SAVE_LAST_CONFIG: "save last config",
+} as const;
+
+export const DEFAULT_VALUES = {
+    IGNORE_CASE: true,
+    NORMALIZE_TYPES: true,
+    NORMALIZE_SCHEMA_ENABLED: true,
+    HIDE_IDENTICAL: false,
+    VIEW_MODE: "detailed",
+} as const;
+
+export class MetadataDiffResult implements IMetadataDiff {
+    constructor(
+        public tables: ICompareResult<ITableInfo, ITableDiff>,
+        public procedures: ICompareResult<IProcedureInfo, IProcedureDiff>,
+    ) {}
+}
+
+export class TableComparator {
+    private columnComparator = new ColumnComparator();
+    private indexComparator = new IndexComparator();
+
+    compareTables(srcTables: ITableInfo[], tgtTables: ITableInfo[], options: CompareOptions): ICompareResult<ITableInfo, ITableDiff> {
+        const normalizeName = (schema: string, name: string) => MetadataBuilder.normalizeName(schema, name, options.ignoreCase);
+
+        const allTables = new Map<string, { source: ITableInfo | null; target: ITableInfo | null }>();
+        srcTables.forEach((t) => {
+            const key = normalizeName(t.schema, t.name);
+            if (!allTables.has(key)) allTables.set(key, { source: null, target: null });
+            allTables.get(key)!.source = t;
+        });
+        tgtTables.forEach((t) => {
+            const key = normalizeName(t.schema, t.name);
+            if (!allTables.has(key)) allTables.set(key, { source: null, target: null });
+            allTables.get(key)!.target = t;
+        });
+
+        const onlyInSource: ITableInfo[] = [];
+        const onlyInTarget: ITableInfo[] = [];
+        const common: ITableDiff[] = [];
+        const caseDifferences: { schema: string; name: string; sourceName: string; targetName: string }[] = [];
+
+        for (const [, pair] of allTables) {
+            if (pair.source && !pair.target) {
+                onlyInSource.push(pair.source);
+            } else if (!pair.source && pair.target) {
+                onlyInTarget.push(pair.target);
+            } else if (pair.source && pair.target) {
+                const result = this.pushCommon(pair.source, pair.target, options);
+                if (result) {
+                    common.push(result);
+                }
+            }
+        }
+
+        return { onlyInSource, onlyInTarget, common, caseDifferences };
+    }
+
+    private pushCommon(src: ITableInfo, tgt: ITableInfo, options: CompareOptions): ITableDiff | null {
         const srcFull = `${src.schema}.${src.name}`;
         const tgtFull = `${tgt.schema}.${tgt.name}`;
-        if (srcFull !== tgtFull) {
-          caseDifferences.push({
+
+        // Регистровые различия добавляем в caseDifferences (но они не влияют на hasRealDiff)
+        // Они будут добавлены в общий результат, но мы не можем добавить их здесь,
+        // так как caseDifferences собирается отдельно. Поэтому мы просто проверяем наличие
+        // и если ignoreCase выключен, то добавляем в массив caseDifferences (это делается в основном цикле).
+        // Поэтому здесь просто выполняем сравнение деталей.
+
+        const colDetails = this.columnComparator.compare(src.columns, tgt.columns, options.ignoreCase);
+        const indexDetails = this.indexComparator.compare(src.indexes, tgt.indexes, options.ignoreCase);
+        const hasRealDiff = this.hasRealDifferences(colDetails, indexDetails, options.ignoreCase);
+
+        if (options.hideIdentical && !hasRealDiff) {
+            return null;
+        }
+
+        return {
             schema: src.schema,
             name: src.name,
-            sourceName: srcFull,
-            targetName: tgtFull
-          });
-        }
-
-        // Сравнение колонок
-        const srcCols = src.columns || [];
-        const tgtCols = tgt.columns || [];
-        const allCols = new Map<string, { source: ColumnInfo | null, target: ColumnInfo | null }>();
-        srcCols.forEach(c => {
-          const keyCol = normalize(c.name, ''); // используем только имя, схема не нужна
-          if (!allCols.has(keyCol)) allCols.set(keyCol, { source: null, target: null });
-          allCols.get(keyCol)!.source = c;
-        });
-        tgtCols.forEach(c => {
-          const keyCol = normalize(c.name, '');
-          if (!allCols.has(keyCol)) allCols.set(keyCol, { source: null, target: null });
-          allCols.get(keyCol)!.target = c;
-        });
-
-        const colDetails = {
-          onlyInSource: [] as string[],
-          onlyInTarget: [] as string[],
-          diff: [] as { name: string, sourceType: string, targetType: string }[],
-          caseDiff: [] as { name: string, sourceName: string, targetName: string }[]
+            columns: colDetails,
+            indexes: indexDetails,
         };
-
-        for (let [colKey, colPair] of allCols) {
-          const srcCol = colPair.source;
-          const tgtCol = colPair.target;
-          if (srcCol && !tgtCol) {
-            colDetails.onlyInSource.push(srcCol.name);
-          } else if (!srcCol && tgtCol) {
-            colDetails.onlyInTarget.push(tgtCol.name);
-          } else {
-            // Есть в обеих
-            const srcName = srcCol!.name;
-            const tgtName = tgtCol!.name;
-            if (srcName !== tgtName) {
-              colDetails.caseDiff.push({
-                name: srcName,
-                sourceName: srcName,
-                targetName: tgtName
-              });
-            }
-            // Сравниваем типы, nullability, PK
-            const srcType = srcCol!.dataType || '';
-            const tgtType = tgtCol!.dataType || '';
-            const srcNullable = srcCol!.isNullable;
-            const tgtNullable = tgtCol!.isNullable;
-            const srcPk = srcCol!.isPrimaryKey;
-            const tgtPk = tgtCol!.isPrimaryKey;
-            if (srcType !== tgtType || srcNullable !== tgtNullable || srcPk !== tgtPk) {
-              const srcDesc = this.formatColumnDesc(srcCol!);
-              const tgtDesc = this.formatColumnDesc(tgtCol!);
-              colDetails.diff.push({
-                name: srcName,
-                sourceType: srcDesc,
-                targetType: tgtDesc
-              });
-            }
-          }
-        }
-
-        // ---- Сравнение индексов ----
-        const srcIndexes = src.indexes || [];
-        const tgtIndexes = tgt.indexes || [];
-        const allIndexes = new Map<string, { source: IndexInfo | null, target: IndexInfo | null }>();
-        srcIndexes.forEach(idx => {
-          const keyIdx = ignoreCase ? idx.name.toLowerCase() : idx.name;
-          if (!allIndexes.has(keyIdx)) allIndexes.set(keyIdx, { source: null, target: null });
-          allIndexes.get(keyIdx)!.source = idx;
-        });
-        tgtIndexes.forEach(idx => {
-          const keyIdx = ignoreCase ? idx.name.toLowerCase() : idx.name;
-          if (!allIndexes.has(keyIdx)) allIndexes.set(keyIdx, { source: null, target: null });
-          allIndexes.get(keyIdx)!.target = idx;
-        });
-
-        const indexDetails = {
-          onlyInSource: [] as string[],
-          onlyInTarget: [] as string[],
-          diff: [] as { name: string, sourceDesc: string, targetDesc: string }[],
-          caseDiff: [] as { name: string, sourceName: string, targetName: string }[]
-        };
-
-        for (let [idxKey, idxPair] of allIndexes) {
-          const srcIdx = idxPair.source;
-          const tgtIdx = idxPair.target;
-          if (srcIdx && !tgtIdx) {
-            indexDetails.onlyInSource.push(srcIdx.name);
-          } else if (!srcIdx && tgtIdx) {
-            indexDetails.onlyInTarget.push(tgtIdx.name);
-          } else {
-            const srcName = srcIdx!.name;
-            const tgtName = tgtIdx!.name;
-            if (srcName !== tgtName) {
-              indexDetails.caseDiff.push({
-                name: srcName,
-                sourceName: srcName,
-                targetName: tgtName
-              });
-            }
-            // Сравниваем свойства индекса: уникальность, кластеризация, колонки
-            const srcDesc = this.formatIndexDesc(srcIdx!);
-            const tgtDesc = this.formatIndexDesc(tgtIdx!);
-            if (srcDesc !== tgtDesc) {
-              indexDetails.diff.push({
-                name: srcName,
-                sourceDesc: srcDesc,
-                targetDesc: tgtDesc
-              });
-            }
-          }
-        }
-
-        commonTables.push({
-          schema: src.schema,
-          name: src.name,
-          columns: colDetails,
-          indexes: indexDetails
-        });
-      }
     }
 
-    // --- Процедуры (без деталей параметров, пока только имена) ---
-    const allProcs = new Map<string, { source: ProcedureInfo | null, target: ProcedureInfo | null }>();
-    (source.procedures || []).forEach(p => {
-      const key = normalize(p.schema, p.name);
-      if (!allProcs.has(key)) allProcs.set(key, { source: null, target: null });
-      allProcs.get(key)!.source = p;
-    });
-    (target.procedures || []).forEach(p => {
-      const key = normalize(p.schema, p.name);
-      if (!allProcs.has(key)) allProcs.set(key, { source: null, target: null });
-      allProcs.get(key)!.target = p;
-    });
+    private hasRealDifferences(colDetails: IColumnDiff, indexDetails: IIndexDiff, ignoreCase: boolean): boolean {
+        const hasColDiff = colDetails.onlyInSource.length > 0 || colDetails.onlyInTarget.length > 0 || colDetails.diff.length > 0;
+        const hasIdxDiff = indexDetails.onlyInSource.length > 0 || indexDetails.onlyInTarget.length > 0 || indexDetails.diff.length > 0;
+        const hasCaseDiff = colDetails.caseDiff.length > 0 || indexDetails.caseDiff.length > 0;
+        return hasColDiff || hasIdxDiff || (hasCaseDiff && !ignoreCase);
+    }
+}
 
-    const onlyInSourceProcs: ProcedureInfo[] = [];
-    const onlyInTargetProcs: ProcedureInfo[] = [];
-    const commonProcs: ProcedureInfo[] = [];
-    const caseDiffProcs: { schema: string, name: string, sourceName: string, targetName: string }[] = [];
+export class ParameterComparator {
+    compare(srcParams: IParameterInfo[], tgtParams: IParameterInfo[], ignoreCase: boolean): IParameterDiff {
+        const normalize = (name: string) => (ignoreCase ? name.toLowerCase() : name);
+        const all = new Map<string, { source: IParameterInfo | null; target: IParameterInfo | null }>();
+        srcParams.forEach((p) => {
+            const key = normalize(p.name);
+            if (!all.has(key)) all.set(key, { source: null, target: null });
+            all.get(key)!.source = p;
+        });
+        tgtParams.forEach((p) => {
+            const key = normalize(p.name);
+            if (!all.has(key)) all.set(key, { source: null, target: null });
+            all.get(key)!.target = p;
+        });
 
-    for (let [key, pair] of allProcs) {
-      if (pair.source && !pair.target) {
-        onlyInSourceProcs.push(pair.source);
-      } else if (!pair.source && pair.target) {
-        onlyInTargetProcs.push(pair.target);
-      } else {
-        const src = pair.source!;
-        const tgt = pair.target!;
+        const onlyInSource: string[] = [];
+        const onlyInTarget: string[] = [];
+        const diff: { name: string; sourceType: string; targetType: string }[] = [];
+        const caseDiff: { name: string; sourceName: string; targetName: string }[] = [];
+
+        for (const [, pair] of all) {
+            const src = pair.source;
+            const tgt = pair.target;
+            if (src && !tgt) {
+                onlyInSource.push(src.name);
+            } else if (!src && tgt) {
+                onlyInTarget.push(tgt.name);
+            } else if (src && tgt) {
+                const srcName = src.name;
+                const tgtName = tgt.name;
+                if (!ignoreCase && srcName !== tgtName) {
+                    caseDiff.push({ name: srcName, sourceName: srcName, targetName: tgtName });
+                }
+                const srcDesc = this.formatParamDesc(src);
+                const tgtDesc = this.formatParamDesc(tgt);
+                if (srcDesc !== tgtDesc) {
+                    diff.push({ name: srcName, sourceType: srcDesc, targetType: tgtDesc });
+                }
+            }
+        }
+
+        return { onlyInSource, onlyInTarget, diff, caseDiff };
+    }
+
+    private formatParamDesc(p: IParameterInfo): string {
+        let desc = p.dataType || "";
+        if (!p.isNullable) desc += " NOT NULL";
+        else desc += " NULL";
+        if (p.isOutput) desc += " OUTPUT";
+        if (p.maxLength && p.maxLength > 0) desc += `(${p.maxLength})`;
+        else if (p.precision && p.scale !== undefined) desc += `(${p.precision},${p.scale})`;
+        return desc;
+    }
+}
+
+export class ProcedureComparator {
+    private paramComparator = new ParameterComparator();
+
+    compareProcedures(srcProcs: IProcedureInfo[], tgtProcs: IProcedureInfo[], options: CompareOptions): ICompareResult<IProcedureInfo, IProcedureDiff> {
+        const normalizeName = (schema: string, name: string) => MetadataBuilder.normalizeName(schema, name, options.ignoreCase);
+
+        const allProcs = new Map<string, { source: IProcedureInfo | null; target: IProcedureInfo | null }>();
+        srcProcs.forEach((p) => {
+            const key = normalizeName(p.schema, p.name);
+            if (!allProcs.has(key)) allProcs.set(key, { source: null, target: null });
+            allProcs.get(key)!.source = p;
+        });
+        tgtProcs.forEach((p) => {
+            const key = normalizeName(p.schema, p.name);
+            if (!allProcs.has(key)) allProcs.set(key, { source: null, target: null });
+            allProcs.get(key)!.target = p;
+        });
+
+        const onlyInSource: IProcedureInfo[] = [];
+        const onlyInTarget: IProcedureInfo[] = [];
+        const common: IProcedureDiff[] = [];
+        const caseDifferences: { schema: string; name: string; sourceName: string; targetName: string }[] = [];
+
+        for (const [, pair] of allProcs) {
+            if (pair.source && !pair.target) {
+                onlyInSource.push(pair.source);
+            } else if (!pair.source && pair.target) {
+                onlyInTarget.push(pair.target);
+            } else if (pair.source && pair.target) {
+                const result = this.pushCommon(pair.source, pair.target, options);
+                if (result) {
+                    common.push(result);
+                }
+            }
+        }
+
+        return { onlyInSource, onlyInTarget, common, caseDifferences };
+    }
+
+    private pushCommon(src: IProcedureInfo, tgt: IProcedureInfo, options: CompareOptions): IProcedureDiff | null {
         const srcFull = `${src.schema}.${src.name}`;
         const tgtFull = `${tgt.schema}.${tgt.name}`;
-        if (srcFull !== tgtFull) {
-          caseDiffProcs.push({
+
+        // Сравниваем параметры
+        const paramDetails = this.paramComparator.compare(src.parameters || [], tgt.parameters || [], options.ignoreCase);
+
+        // Проверяем наличие реальных различий (имя + параметры)
+        const nameDiff = !options.ignoreCase && srcFull !== tgtFull;
+        const hasParamDiff = paramDetails.onlyInSource.length > 0 || paramDetails.onlyInTarget.length > 0 || paramDetails.diff.length > 0 || (paramDetails.caseDiff.length > 0 && !options.ignoreCase);
+        const hasRealDiff = nameDiff || hasParamDiff;
+
+        if (options.hideIdentical && !hasRealDiff) {
+            return null;
+        }
+
+        return {
             schema: src.schema,
             name: src.name,
-            sourceName: srcFull,
-            targetName: tgtFull
-          });
+            parameters: paramDetails,
+        };
+    }
+}
+
+export class ColumnComparator {
+    compare(srcCols: IColumnInfo[], tgtCols: IColumnInfo[], ignoreCase: boolean): IColumnDiff {
+        const normalize = (name: string) => (ignoreCase ? name.toLowerCase() : name);
+        const all = new Map<string, { source: IColumnInfo | null; target: IColumnInfo | null }>();
+        srcCols.forEach((c) => {
+            const key = normalize(c.name);
+            if (!all.has(key)) all.set(key, { source: null, target: null });
+            all.get(key)!.source = c;
+        });
+        tgtCols.forEach((c) => {
+            const key = normalize(c.name);
+            if (!all.has(key)) all.set(key, { source: null, target: null });
+            all.get(key)!.target = c;
+        });
+
+        const onlyInSource: string[] = [];
+        const onlyInTarget: string[] = [];
+        const diff: { name: string; sourceType: string; targetType: string }[] = [];
+        const caseDiff: { name: string; sourceName: string; targetName: string }[] = [];
+
+        for (const [, pair] of all) {
+            const srcCol = pair.source;
+            const tgtCol = pair.target;
+            if (srcCol && !tgtCol) {
+                onlyInSource.push(srcCol.name);
+            } else if (!srcCol && tgtCol) {
+                onlyInTarget.push(tgtCol.name);
+            } else if (srcCol && tgtCol) {
+                const srcName = srcCol.name;
+                const tgtName = tgtCol.name;
+                if (!ignoreCase && srcName !== tgtName) {
+                    caseDiff.push({ name: srcName, sourceName: srcName, targetName: tgtName });
+                }
+                const srcDesc = this.formatColumnDesc(srcCol);
+                const tgtDesc = this.formatColumnDesc(tgtCol);
+                if (srcDesc !== tgtDesc) {
+                    diff.push({ name: srcName, sourceType: srcDesc, targetType: tgtDesc });
+                }
+            }
         }
-        commonProcs.push(src);
-      }
+
+        return { onlyInSource, onlyInTarget, diff, caseDiff };
     }
 
-    return {
-      onlyInSource,
-      onlyInTarget,
-      common: commonTables,
-      caseDifferences,
-      onlyInSourceProcs,
-      onlyInTargetProcs,
-      commonProcs,
-      caseDiffProcs
-    };
-  }
+    private formatColumnDesc(col: IColumnInfo): string {
+        let desc = col.dataType || "";
+        if (!col.isNullable) desc += " NOT NULL";
+        else desc += " NULL";
+        if (col.isPrimaryKey) desc += " PK";
+        return desc;
+    }
+}
 
-  // ---------- Webview ----------
-  private _getWebviewContent(): string {
-    const webviewFolder = vscode.Uri.joinPath(this.extensionUri, 'webview');
-    const htmlPath = vscode.Uri.joinPath(webviewFolder, 'index.html');
-    const htmlContent = fs.readFileSync(htmlPath.fsPath, 'utf8');
+export class IndexComparator {
+    compare(srcIndexes: IIndexInfo[], tgtIndexes: IIndexInfo[], ignoreCase: boolean): IIndexDiff {
+        const normalize = (name: string) => (ignoreCase ? name.toLowerCase() : name);
+        const all = new Map<string, { source: IIndexInfo | null; target: IIndexInfo | null }>();
+        srcIndexes.forEach((idx) => {
+            const key = normalize(idx.name);
+            if (!all.has(key)) all.set(key, { source: null, target: null });
+            all.get(key)!.source = idx;
+        });
+        tgtIndexes.forEach((idx) => {
+            const key = normalize(idx.name);
+            if (!all.has(key)) all.set(key, { source: null, target: null });
+            all.get(key)!.target = idx;
+        });
 
-    const config = vscode.workspace.getConfiguration();
-    const lastSource = config.get<string>(CONFIG_KEYS.lastSource) || '';
-    const lastTarget = config.get<string>(CONFIG_KEYS.lastTarget) || '';
+        const onlyInSource: string[] = [];
+        const onlyInTarget: string[] = [];
+        const diff: { name: string; sourceDesc: string; targetDesc: string }[] = [];
+        const caseDiff: { name: string; sourceName: string; targetName: string }[] = [];
 
-    let processedHtml = htmlContent
-      .replace(/\{\{lastSource\}\}/g, lastSource)
-      .replace(/\{\{lastTarget\}\}/g, lastTarget);
+        for (const [, pair] of all) {
+            const src = pair.source;
+            const tgt = pair.target;
+            if (src && !tgt) {
+                onlyInSource.push(src.name);
+            } else if (!src && tgt) {
+                onlyInTarget.push(tgt.name);
+            } else if (src && tgt) {
+                const srcName = src.name;
+                const tgtName = tgt.name;
+                if (!ignoreCase && srcName !== tgtName) {
+                    caseDiff.push({ name: srcName, sourceName: srcName, targetName: tgtName });
+                }
+                const srcDesc = this.formatIndexDesc(src);
+                const tgtDesc = this.formatIndexDesc(tgt);
+                if (srcDesc !== tgtDesc) {
+                    diff.push({ name: srcName, sourceDesc: srcDesc, targetDesc: tgtDesc });
+                }
+            }
+        }
 
-    const styleUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(webviewFolder, 'style.css'));
-    const scriptUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(webviewFolder, 'script.js'));
+        return { onlyInSource, onlyInTarget, diff, caseDiff };
+    }
 
-    processedHtml = processedHtml.replace('href="style.css"', `href="${styleUri}"`);
-    processedHtml = processedHtml.replace('src="script.js"', `src="${scriptUri}"`);
-
-    return processedHtml;
-  }
-
-  private sendMessage(message: any) {
-    this._panel.webview.postMessage(message);
-  }
-
-  public dispose() {
-    ComparePanel.currentPanel = undefined;
-    this._disposables.forEach(d => d.dispose());
-  }
+    private formatIndexDesc(idx: IIndexInfo): string {
+        let desc = "";
+        if (idx.isUnique) desc += "UNIQUE ";
+        if (idx.isClustered) desc += "CLUSTERED ";
+        if (idx.columns) desc += `(${idx.columns.join(", ")})`;
+        return desc.trim();
+    }
 }

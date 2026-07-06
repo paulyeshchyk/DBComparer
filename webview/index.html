@@ -1,67 +1,107 @@
 <!DOCTYPE html>
 <html lang="ru">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DB Compare</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <h1>DB Schema Compare</h1>
-
-  <!-- Вкладки -->
-  <div class="tabs">
-    <div class="tab-headers">
-      <div class="tab-header active" data-tab="settings">Настройки</div>
-      <div class="tab-header" data-tab="result">Результат</div>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DB Compare</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <div class="app-header">
+      <div class="header-title">DB Schema Compare</div>
+      <div class="header-actions">
+        <button id="runBtn">▶ Запустить сравнение</button>
+        <button id="runFromCacheBtn">▶ Запустить сравнение(из кэша)</button>
+        <button id="showLogsBtn">Logs</button>
+      </div>
     </div>
-    <div class="tab-contents">
-      <!-- Вкладка "Настройки" -->
-      <div id="tab-settings" class="tab-content active">
-        <div class="section">
-          <label><strong>Source:</strong></label><br>
-          <input id="source" type="text" placeholder="Server=10.63.5.195;Database=..." value="{{lastSource}}" class="connection"><br><br>
-          
-          <label><strong>Target:</strong></label><br>
-          <input id="target" type="text" placeholder="Server=... или postgresql://..." value="{{lastTarget}}" class="connection"><br><br>
+    <!-- Вкладки -->
+    <div class="tabs">
+      <div class="tab-headers">
+        <div class="tab-header active" data-tab="settings">Настройки</div>
+        <div class="tab-header" data-tab="result">Результат</div>
+        <div class="tab-header" data-tab="cache">Кэш</div>
+      </div>
+      <div class="tab-contents">
+        <!-- Вкладка "Настройки" -->
+        <div id="tab-settings" class="tab-content active">
+          <div class="section">
+            <!-- ПОЛЯ ВВОДА -->
+            <div class="connection-row">
+              <div class="connection-group">
+                <label>
+                <strong>Source:</strong>
+                </label>
+                <input id="source" type="text" placeholder="Server=10.63.5.195;Database=..." value="{{lastSource}}" class="connection">
+              </div>
+              <div class="connection-group">
+                <label>
+                <strong>Target:</strong>
+                </label>
+                <input id="target" type="text" placeholder="Server=... или postgresql://..." value="{{lastTarget}}" class="connection">
+              </div>
+            </div>
+            <hr class="solid">
+            <!-- Чекбоксы и радиокнопки -->
+            <div class="options-row">
+              <div class="options-left">
+                <label><strong>Опции:</strong></label>
+                <br><br>
+                <label><input type="checkbox" id="normalizeTypes" checked> Нормализовать типы</label>
+                <br>
+                <label><input type="checkbox" id="normalizeSchemaEnabled" checked> Нормализовать схемы</label>
+                <br>
+                <label>
+                <input type="checkbox" id="ignoreCase" checked> Игнорировать регистр
+                </label>
+                <br>
+                <label>
+                <input type="checkbox" id="hideIdentical" checked> Скрывать полностью совпадающие элементы
+                </label>
+              </div>
+              <div class="options-left">
+                <label>
+                <strong>Режим отображения:</strong>
+                </label>
+                <br>
+                <br><input type="radio" name="viewMode" value="detailed" checked> Детальный
+                <br><input type="radio" name="viewMode" value="grouped"> Группировка по типам
+              </div>
+            </div>
 
-          <label><input type="checkbox" id="normalizeTypes" checked> Нормализовать типы</label><br>
-          <label><input type="checkbox" id="normalizeSchemaEnabled" checked> Нормализовать схемы</label><br>
-          <label><input type="checkbox" id="ignoreCase" checked> Игнорировать регистр</label><br>
-          <label><input type="checkbox" id="useCache" checked> Кешировать результат</label><br><br>
-
-          <label><strong>Маппинг схем:</strong></label><br>
-          <div id="mappingContainer">
-            <table id="mappingTable">
-              <thead>
-                <tr><th>Исходная схема</th><th>Целевая схема</th><th></th></tr>
-              </thead>
-              <tbody id="mappingBody">
-                <!-- Строки будут добавлены скриптом -->
-              </tbody>
-            </table>
-            <button id="addMappingRow" type="button">+ Добавить строку</button>
+            <hr class="solid">
+            <!-- МАППИНГ СХЕМ -->
+            <label>
+            <strong>Маппинг схем:</strong>
+            </label>
+            <br>
+            <div id="mappingContainer">
+              <table id="mappingTable">
+                <thead>
+                  <tr>
+                    <th>Исходная схема</th>
+                    <th>Целевая схема</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="mappingBody">
+                  <!-- Строки будут добавлены скриптом -->
+                </tbody>
+              </table>
+              <button id="addMappingRow" type="button">+ Добавить строку</button>
+            </div>
           </div>
-          <br>
-
-          <label><strong>Режим отображения:</strong></label><br>
-          <input type="radio" name="viewMode" value="detailed" checked> Детальный<br>
-          <input type="radio" name="viewMode" value="grouped"> Группировка по типам<br><br>
-
-          <button id="runBtn" onclick="startCompare()">▶ Запустить сравнение</button>
+        </div>
+        <!-- Вкладка "Результат" -->
+        <div id="tab-result" class="tab-content">
+          <div id="result"></div>
+        </div>
+        <!-- Вкладка "Кэш" -->
+        <div id="tab-cache" class="tab-content">
+          <div id="cacheList"></div>
         </div>
       </div>
-
-      <!-- Вкладка "Результат" -->
-      <div id="tab-result" class="tab-content">
-        <div id="result"></div>
-      </div>
     </div>
-  </div>
-
-  <!-- Область статуса -->
-  <div id="status" class="section"></div>
-
-  <script src="script.js"></script>
-</body>
+    <script src="dist/bundle.js"></script>
+  </body>
 </html>

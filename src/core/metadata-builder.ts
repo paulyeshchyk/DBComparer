@@ -1,11 +1,11 @@
-import { ConnectionConfig, DatabaseMetadata } from './types';
+import { IConnectionConfig, DatabaseMetadata } from './types';
 import { DatabaseMetadataExtractor } from './extractors/base';
 import { ConnectionStringHelper } from './connection-helper';
 import { NormalizerFactory } from './normalizers/factory';
 
 export class MetadataBuilder {
   static async build(
-        config: ConnectionConfig, 
+        config: IConnectionConfig, 
         extractor: DatabaseMetadataExtractor
     ): Promise<DatabaseMetadata> {
         const metadata = await extractor.extractMetadataAsync();
@@ -29,7 +29,7 @@ export class MetadataBuilder {
         }
     }
 
-  static normalizeSchema(config: ConnectionConfig, metadata: DatabaseMetadata) {
+  static normalizeSchema(config: IConnectionConfig, metadata: DatabaseMetadata) {
     if (!config.options.normalizeSchemaEnabled) return;
     const mapping = config.options.normalizeSchema || {};
     if (Object.keys(mapping).length === 0) return;
