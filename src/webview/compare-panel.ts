@@ -61,7 +61,7 @@ export class ComparePanel {
                 await this.exportCacheFile(message.hash);
                 break;
             case "openObject":
-                this.openIDE(message);
+                await this.openIDE(message);
                 break;
         }
     }
@@ -120,7 +120,9 @@ export class ComparePanel {
         }
     }
 
-    private openIDE(message: any) {}
+    private async openIDE(message: any) {
+        await this.openMetadataObject("");
+    }
 
     private sendResult(source: any, target: any, diff: any, viewMode: string, config: IConnectionConfig) {
         this.sendMessage({
@@ -312,6 +314,34 @@ export class ComparePanel {
     public dispose() {
         ComparePanel.currentPanel = undefined;
         this._disposables.forEach((d) => d.dispose());
+    }
+
+    async openMetadataObject(objectName: string) {
+        //https://share.google/aimode/Mf2ECu00yn69vz21Y
+        // 1. Создаем виртуальный документ с языком SQL
+        const document = await vscode.workspace.openTextDocument({
+            language: "sql",
+            content: `\n\n-- Нажмите F12 или скрипт сработает автоматически\n${objectName}\n\n`,
+        });
+
+        // 2. Открываем его в активном редакторе
+        const editor = await vscode.window.showTextDocument(document);
+
+        // 3. Ставим курсор ровно на имя нашего метаобъекта (ищем его координаты)
+        const text = document.getText();
+        const index = text.indexOf(objectName);
+        const startPos = document.positionAt(index);
+        const endPos = document.positionAt(index + objectName.length);
+
+        editor.selection = new vscode.Selection(startPos, endPos);
+
+        // 4. Твоя UI-подсказка: для mssql нужно, чтобы у окна было активно подключение.
+        // Ты можешь вызвать команду подключения mssql, чтобы пользователю вывалился список профилей:
+        // await vscode.commands.executeCommand('mssql.connect');
+
+        // 5. Вызываем стандартную команду VS Code "Перейти к определению"
+        // Если расширение mssql/postgres активно и подключено к этой БД, оно само откроет структуру объекта!
+        await vscode.commands.executeCommand("editor.action.goToDeclaration");
     }
 }
 
