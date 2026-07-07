@@ -37,6 +37,10 @@ export function renderResult(source, target, diff, viewMode, normalizeSchemaEnab
 // РЕНДЕРЕРЫ
 // =================================================================
 
+export function generateTableObject(table, dbType = "mssql", side = "source") {
+  return `data-open-object data-db-type="${dbType}" data-schema="${table.schema} " data-name="${table.name} " data-obj-type="table" data-side="${side}"`;
+}
+
 export function renderColumnsDetails(cols, hideIdentical) {
   let html = "";
   const hasDiff = cols.onlyInSource?.length > 0 || cols.onlyInTarget?.length > 0 || cols.diff?.length > 0 || cols.caseDiff?.length > 0;
@@ -103,12 +107,14 @@ export function renderIndexDetails(idx, hideIdentical) {
 
 export function renderOnlyInSourceTable(table, showSchema) {
   const displayName = getDisplayName(table.schema, table.name, showSchema);
-  return `<tr class="metadata-header"><td>${displayName}</td><td></td></tr>`;
+  const tableObject = generateTableObject(table, "mssql", "source");
+  return `<tr class="metadata-header"><td ${tableObject}>${displayName}</td><td></td></tr>`;
 }
 
 export function renderOnlyInTargetTable(table, showSchema) {
   const displayName = getDisplayName(table.schema, table.name, showSchema);
-  return `<tr class="metadata-header"><td></td><td>${displayName}</td></tr>`;
+  const tableObject = generateTableObject(table.schema, table.name, "target");
+  return `<tr class="metadata-header"><td></td><td ${tableObject}>${displayName}</td></tr>`;
 }
 
 export function renderTablesDetailed(diffTables, showSchema, hideIdentical, ignoreCase) {

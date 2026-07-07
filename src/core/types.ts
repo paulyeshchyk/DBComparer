@@ -132,3 +132,9 @@ export interface ICacheManager {
 export interface IComparator {
     compareMetadata(source: DatabaseMetadata, target: DatabaseMetadata, options: CompareOptions): IMetadataDiff;
 }
+
+export interface ProgressFormatResult {
+    formattedCurrent: string; // Строка с ведущими нулями, например '001'
+    formattedTotal: string; // Общее количество в виде строки, например '202'
+    formattedStr: string; // Готовая строка вида '[001/202]'
+}

@@ -1,6 +1,6 @@
 // src/extractors/base.ts
 
-import { Logger } from "../../webview/compare-panel";
+import { Logger } from "../../webview/Logger";
 import { DatabaseMetadata } from "../types";
 
 export abstract class DatabaseMetadataExtractor {

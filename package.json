@@ -6,7 +6,7 @@
     "url": "https://github.com/paulyeshchyk/DBComparer"
   },
   "license": "MIT",
-  "version": "0.4.0",
+  "version": "0.4.14",
   "publisher": "paulyestchick",
   "engines": {
     "vscode": "^1.85.0"
@@ -38,6 +38,16 @@
     "configuration": {
       "title": "DB Compare",
       "properties": {
+        "db-compare.ide": {
+          "type": "string",
+          "enum": [
+            "vscode-extension",
+            "external-app",
+            "sql-script"
+          ],
+          "default": "vscode-extension",
+          "description": "Способ открытия объектов в IDE"
+        },
         "db-compare.normalizeTypes": {
           "type": "boolean",
           "default": true,

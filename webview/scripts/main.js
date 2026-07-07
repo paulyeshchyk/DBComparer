@@ -105,7 +105,23 @@ document.addEventListener("DOMContentLoaded", () => {
 document.getElementById('runBtn').addEventListener('click', startCompare);
 document.getElementById('runFromCacheBtn').addEventListener('click', startCompareFromCache);
 document.getElementById('showLogsBtn').addEventListener('click', showLogs);
-
+document.getElementById('result').addEventListener('click', (e) => {
+  const currentConfig = getCurrentConfig();
+  const target = e.target.closest('[data-open-object]');
+  if (!target) return;
+  const dbType = target.dataset.dbType;
+  const schema = target.dataset.schema;
+  const name = target.dataset.name;
+  const objType = target.dataset.objType;
+  vscode.postMessage({
+    command: 'openObject',
+    dbType,
+    schema,
+    name,
+    objType,
+    connectionString: currentConfig.source // или target
+  });
+});
 // Обработчики кликов по заголовкам вкладок (блокируем переход на "Результат", если нет контента)
 document.querySelectorAll(".tab-header").forEach((header) => {
   header.addEventListener("click", function () {
