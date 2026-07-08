@@ -187,13 +187,17 @@ button:disabled {
     width: 50%;
 }
 
+tr.metadata-header {
+    border-top: 1.5px solid var(--vscode-widget-border);
+}
+
 /* Строки с именами таблиц/процедур (заголовки сущностей) */
 tr.metadata-header td {
     background: var(--vscode-sideBar-background) !important;
     color: var(--vscode-foreground) !important;
     font-weight: 600;
     border-top: 1.5px solid var(--vscode-widget-border);
-    border-bottom: 1px solid var(--vscode-panel-border);
+    border-bottom: 0px solid var(--vscode-panel-border);
 }
 
 tr.metadata-header td[colspan="2"] {
@@ -209,6 +213,10 @@ tr.metadata-header td[colspan="2"] {
 .only-source td:first-child {
     background: var(--vscode-diffEditor-insertedTextBackground, rgba(155, 185, 85, 0.1));
     border-left: 3px solid var(--vscode-gitDecoration-addedResourceForeground, #2ea44f);
+}
+
+.only-target td:first-child {
+    border-left: 1px solid var(--vscode-panel-border);
 }
 
 .only-target td:last-child {

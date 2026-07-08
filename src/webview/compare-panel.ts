@@ -317,7 +317,6 @@ export class ComparePanel {
     }
 
     async openMetadataObject(objectName: string) {
-        //https://share.google/aimode/Mf2ECu00yn69vz21Y
         // 1. Создаем виртуальный документ с языком SQL
         const document = await vscode.workspace.openTextDocument({
             language: "sql",

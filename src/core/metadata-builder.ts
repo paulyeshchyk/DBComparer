@@ -73,6 +73,7 @@ export class MetadataBuilder {
         };
 
         return {
+            provider: metadata.provider,
             connectionString: metadata.connectionString,
             tables: filterObjects(metadata.tables, includeFilters, excludeFilters),
             procedures: filterObjects(metadata.procedures, includeFilters, excludeFilters),

@@ -1,23 +1,6 @@
 import { getDisplayName } from "./config";
 import { setSettingsEnabled, switchTab } from "./ui";
 
-export function renderCommonTable(table, showSchema, hideIdentical, ignoreCase) {
-  const displayName = getDisplayName(table.schema, table.name, showSchema);
-  const cols = table.columns || { onlyInSource: [], onlyInTarget: [], diff: [], caseDiff: [] };
-  const idx = table.indexes || { onlyInSource: [], onlyInTarget: [], diff: [], caseDiff: [] };
-
-  const hasDiff = hasDifferences(table, ignoreCase);
-
-  if (hideIdentical && !hasDiff) {
-    return "";
-  }
-
-  let html = `<tr class="metadata-header"><td colspan="2">${displayName}</td></tr>`;
-  html += renderColumnsDetails(cols, hideIdentical);
-  html += renderIndexDetails(idx, hideIdentical);
-  return html;
-}
-
 export function hasDifferences(table, ignoreCase) {
   const cols = table.columns || {};
   const idx = table.indexes || {};
@@ -37,8 +20,8 @@ export function renderResult(source, target, diff, viewMode, normalizeSchemaEnab
 // РЕНДЕРЕРЫ
 // =================================================================
 
-export function generateTableObject(table, dbType = "mssql", side = "source") {
-  return `data-open-object data-db-type="${dbType}" data-schema="${table.schema} " data-name="${table.name} " data-obj-type="table" data-side="${side}"`;
+export function generateTableObject(tableProvider, tableSchema, tableName, side = "source") {
+  return `data-open-object data-db-type="${tableProvider}" data-schema="${tableSchema} " data-name="${tableName} " data-obj-type="table" data-side="${side}"`;
 }
 
 export function renderColumnsDetails(cols, hideIdentical) {
@@ -107,14 +90,33 @@ export function renderIndexDetails(idx, hideIdentical) {
 
 export function renderOnlyInSourceTable(table, showSchema) {
   const displayName = getDisplayName(table.schema, table.name, showSchema);
-  const tableObject = generateTableObject(table, "mssql", "source");
+  const tableObject = generateTableObject(table.provider, table.schema, table.name, "source");
   return `<tr class="metadata-header"><td ${tableObject}>${displayName}</td><td></td></tr>`;
 }
 
 export function renderOnlyInTargetTable(table, showSchema) {
   const displayName = getDisplayName(table.schema, table.name, showSchema);
-  const tableObject = generateTableObject(table.schema, table.name, "target");
+  const tableObject = generateTableObject(table.provider, table.schema, table.name, "target");
   return `<tr class="metadata-header"><td></td><td ${tableObject}>${displayName}</td></tr>`;
+}
+
+export function renderCommonTable(table, showSchema, hideIdentical, ignoreCase) {
+  const cols = table.columns || { onlyInSource: [], onlyInTarget: [], diff: [], caseDiff: [] };
+  const idx = table.indexes || { onlyInSource: [], onlyInTarget: [], diff: [], caseDiff: [] };
+
+  const hasDiff = hasDifferences(table, ignoreCase);
+
+  if (hideIdentical && !hasDiff) {
+    return "";
+  }
+
+  const displayName = getDisplayName('common schema', table.name, showSchema);
+  const tableObject = generateTableObject('common provider', 'common schema', table.name, "common");
+
+  let html = `<tr class="metadata-header"><td colspan="2"  ${tableObject}>${displayName}</td></tr>`;
+  html += renderColumnsDetails(cols, hideIdentical);
+  html += renderIndexDetails(idx, hideIdentical);
+  return html;
 }
 
 export function renderTablesDetailed(diffTables, showSchema, hideIdentical, ignoreCase) {
@@ -262,6 +264,7 @@ export function renderDetailedView(diff, showSchema, hideIdentical, ignoreCase) 
   html += renderProcedures(diff.procedures, showSchema, hideIdentical, ignoreCase);
   return html;
 }
+
 export function renderGroupedView(diff, showSchema, hideIdentical, ignoreCase) {
   if (!diff) return `<div class="section"><p>${window.i18n.t('render.nodatatocompare')}</p></div>`;
   let html = "";
@@ -269,6 +272,7 @@ export function renderGroupedView(diff, showSchema, hideIdentical, ignoreCase) {
   html += renderProcedures(diff.procedures, showSchema, hideIdentical, ignoreCase);
   return html;
 }
+
 export function renderComparison(source, target, diff, viewMode, normalizeSchemaEnabled, hideIdentical, ignoreCase) {
   if (!source || !target || !diff) {
     return `<div class="section"><p>${window.i18n.t('render.nodatatocompare')}</p></div>`;

@@ -15,6 +15,7 @@ export class MssqlMetadataExtractor extends DatabaseMetadataExtractor {
             const tables = await this.extractTablesOptimized(pool);
             const procedures = await this.extractProceduresOptimized(pool);
             return {
+                provider: "mssql",
                 connectionString: this.connectionString,
                 tables,
                 procedures,
@@ -134,6 +135,7 @@ export class MssqlMetadataExtractor extends DatabaseMetadataExtractor {
             const tableInfo: ITableInfo = {
                 schema,
                 name,
+                provider: "mssql",
                 columns: cols.map((col: any) => ({
                     name: col.COLUMN_NAME,
                     dataType: col.DATA_TYPE,
@@ -182,6 +184,7 @@ export class MssqlMetadataExtractor extends DatabaseMetadataExtractor {
                 procMap.set(key, {
                     schema: row.schema_name,
                     name: row.proc_name,
+                    provider: "mssql",
                     parameters: [],
                 });
             }

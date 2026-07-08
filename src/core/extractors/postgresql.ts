@@ -38,6 +38,7 @@ export class PgMetadataExtractor extends DatabaseMetadataExtractor {
             const tables = await this.extractTablesOptimized(client);
             const procedures = await this.extractProceduresOptimized(client);
             return {
+                provider: "pgsql",
                 connectionString: this.connectionString,
                 tables,
                 procedures,
@@ -119,6 +120,7 @@ export class PgMetadataExtractor extends DatabaseMetadataExtractor {
             const tableInfo: ITableInfo = {
                 schema,
                 name,
+                provider: "pgsql",
                 columns: cols.map((col: any) => ({
                     name: col.column_name,
                     dataType: col.data_type,
@@ -163,6 +165,7 @@ export class PgMetadataExtractor extends DatabaseMetadataExtractor {
                 procMap.set(key, {
                     schema: row.routine_schema,
                     name: row.routine_name,
+                    provider: "pgsql",
                     parameters: [],
                 });
             }

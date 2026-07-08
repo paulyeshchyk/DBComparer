@@ -41,17 +41,20 @@ export interface IParameterDiff {
 export interface IProcedureInfo {
     schema: string;
     name: string;
+    provider: string;
     parameters: IParameterInfo[];
 }
 
 export interface ITableInfo {
     schema: string;
     name: string;
+    provider: string;
     columns: IColumnInfo[];
     indexes: IIndexInfo[];
 }
 
 export interface DatabaseMetadata {
+    provider: string;
     connectionString: string;
     tables: ITableInfo[];
     procedures: IProcedureInfo[];

@@ -38,13 +38,16 @@ function startCompareFromCache() {
 // ОБРАБОТЧИК СООБЩЕНИЙ ОТ РАСШИРЕНИЯ
 // =================================================================
 const commandHandlers = {
+  // COMMANDS.loading
   loading: (msg) => {
     // ничего не делаем. всё в логах        
   },
+  // COMMANDS.error
   error: (msg) => {
     console.error("Error from extension:", msg.message);
     setSettingsEnabled(true);
   },
+  // COMMANDS.result
   result: (msg) => {
     const resultEl = document.getElementById("result");
     try {
@@ -108,7 +111,8 @@ document.getElementById('showLogsBtn').addEventListener('click', showLogs);
 document.getElementById('result').addEventListener('click', (e) => {
   const currentConfig = getCurrentConfig();
   const target = e.target.closest('[data-open-object]');
-  if (!target) return;
+  if (!target)
+    return;
   const dbType = target.dataset.dbType;
   const schema = target.dataset.schema;
   const name = target.dataset.name;
